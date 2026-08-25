@@ -1,0 +1,8 @@
+bin/
+obj/
+artifacts/
+src/QuestDeploy.Installer/Payload/*.zip
+*.user
+*.suo
+*.pdb
+TestResults/

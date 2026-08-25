@@ -1,0 +1,410 @@
+<Window x:Class="QuestDeploy.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:QuestDeploy"
+        Title="Quest Deploy" Height="820" Width="1220" MinHeight="720" MinWidth="1040"
+        Background="#F5F7FA">
+    <Window.Resources>
+        <local:StatusBrushConverter x:Key="StatusBrush" />
+        <local:TransportBrushConverter x:Key="TransportBrush" />
+
+        <SolidColorBrush x:Key="Ink" Color="#17212B" />
+        <SolidColorBrush x:Key="Muted" Color="#617080" />
+        <SolidColorBrush x:Key="Line" Color="#DDE3EA" />
+        <SolidColorBrush x:Key="Panel" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="Accent" Color="#2563EB" />
+        <SolidColorBrush x:Key="AccentSoft" Color="#E8F1FF" />
+
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="BorderBrush" Value="#C9D2DC" />
+            <Setter Property="Background" Value="White" />
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="{StaticResource Accent}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Margin" Value="0,4,8,10" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="BorderBrush" Value="#C9D2DC" />
+        </Style>
+
+        <Style TargetType="PasswordBox">
+            <Setter Property="Margin" Value="0,4,8,10" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="BorderBrush" Value="#C9D2DC" />
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Margin" Value="0,4,8,10" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="BorderBrush" Value="#C9D2DC" />
+        </Style>
+
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style x:Key="LabelText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <Style x:Key="PanelBorder" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Panel}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+
+        <DataTemplate x:Key="HeadsetTemplate">
+            <Border Margin="0,0,0,10"
+                    Padding="12"
+                    CornerRadius="8"
+                    BorderBrush="#DFE5EC"
+                    BorderThickness="1"
+                    Background="White">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="34" />
+                        <ColumnDefinition Width="74" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <CheckBox Grid.Column="0"
+                              VerticalAlignment="Center"
+                              IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <Grid Grid.Column="1" Width="58" Height="48" VerticalAlignment="Center">
+                        <Border Width="54"
+                                Height="34"
+                                CornerRadius="17"
+                                BorderThickness="3"
+                                BorderBrush="{Binding Transport, Converter={StaticResource TransportBrush}, ConverterParameter=Foreground}"
+                                Background="{Binding Transport, Converter={StaticResource TransportBrush}}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        <Border Width="28"
+                                Height="18"
+                                CornerRadius="9"
+                                BorderThickness="2"
+                                BorderBrush="{Binding Transport, Converter={StaticResource TransportBrush}, ConverterParameter=Foreground}"
+                                Background="White"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        <Ellipse Width="8"
+                                 Height="8"
+                                 Fill="{Binding Status, Converter={StaticResource StatusBrush}, ConverterParameter=Foreground}"
+                                 HorizontalAlignment="Right"
+                                 VerticalAlignment="Top"
+                                 Margin="0,4,7,0" />
+                    </Grid>
+
+                    <Grid Grid.Column="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <DockPanel Grid.Row="0" LastChildFill="True">
+                            <Border DockPanel.Dock="Right"
+                                    CornerRadius="9"
+                                    Padding="8,3"
+                                    Background="{Binding Status, Converter={StaticResource StatusBrush}}">
+                                <TextBlock Text="{Binding Status}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{Binding Status, Converter={StaticResource StatusBrush}, ConverterParameter=Foreground}" />
+                            </Border>
+                            <TextBlock Text="{Binding Name}"
+                                       Foreground="{StaticResource Ink}"
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+
+                        <TextBlock Grid.Row="1"
+                                   Text="{Binding Endpoint}"
+                                   Foreground="{StaticResource Muted}"
+                                   FontFamily="Consolas"
+                                   FontSize="12"
+                                   Margin="0,5,0,0"
+                                   TextTrimming="CharacterEllipsis" />
+
+                        <DockPanel Grid.Row="2" Margin="0,7,0,0">
+                            <Border DockPanel.Dock="Left"
+                                    CornerRadius="9"
+                                    Padding="8,3"
+                                    Background="{Binding Transport, Converter={StaticResource TransportBrush}}">
+                                <TextBlock Text="{Binding Transport}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{Binding Transport, Converter={StaticResource TransportBrush}, ConverterParameter=Foreground}" />
+                            </Border>
+                            <TextBlock Text="{Binding Detail}"
+                                       Margin="8,2,0,0"
+                                       Foreground="{StaticResource Muted}"
+                                       FontSize="11"
+                                       TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="150" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,14" LastChildFill="True">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Refresh" Click="OnRefresh" />
+                <Button Content="Reconnect" Click="OnReconnectKnown" />
+                <Button Content="Clear remembered" Click="OnClearRemembered" />
+                <Button Style="{StaticResource PrimaryButton}" Content="Enable Wi-Fi ADB" Click="OnEnableWifiFromUsb" />
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="Quest Deploy" FontSize="29" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                <TextBlock x:Name="AdbStatusText" Foreground="{StaticResource Muted}" />
+            </StackPanel>
+        </DockPanel>
+
+        <Grid Grid.Row="1" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource PanelBorder}" Margin="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="USB ready" Style="{StaticResource LabelText}" />
+                    <TextBlock x:Name="UsbCountText" Text="0" FontSize="24" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Margin="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="Wi-Fi ADB" Style="{StaticResource LabelText}" />
+                    <TextBlock x:Name="WifiCountText" Text="0" FontSize="24" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="2" Style="{StaticResource PanelBorder}" Margin="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="Network candidates" Style="{StaticResource LabelText}" />
+                    <TextBlock x:Name="CandidateCountText" Text="0" FontSize="24" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="3" Style="{StaticResource PanelBorder}">
+                <StackPanel>
+                    <TextBlock Text="Selected targets" Style="{StaticResource LabelText}" />
+                    <TextBlock x:Name="SelectedCountText" Text="0" FontSize="24" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="410" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource PanelBorder}" Padding="0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Grid.Row="0" Margin="16,14,16,8">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Content="Find hotspot clients" Click="OnFindHotspotClients" />
+                            <Button Content="Connect selected IP" Click="OnConnectSelectedCandidate" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="Headset Fleet" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="USB, Wi-Fi ADB, and network-only candidates" Style="{StaticResource LabelText}" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <ListBox x:Name="DevicesGrid"
+                             Grid.Row="1"
+                             ItemsSource="{Binding Devices}"
+                             ItemTemplate="{StaticResource HeadsetTemplate}"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             Padding="16,4,16,12"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                </Grid>
+            </Border>
+
+            <Grid Grid.Column="1" Margin="16,0,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock Text="1" Foreground="{StaticResource Accent}" FontWeight="SemiBold" />
+                            <TextBlock Text="Authorize USB" Style="{StaticResource LabelText}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                            <TextBlock Text="2" Foreground="{StaticResource Accent}" FontWeight="SemiBold" />
+                            <TextBlock Text="Enable ADB" Style="{StaticResource LabelText}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Margin="0,0,8,0">
+                            <TextBlock Text="3" Foreground="{StaticResource Accent}" FontWeight="SemiBold" />
+                            <TextBlock Text="Connect Wi-Fi" Style="{StaticResource LabelText}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="3">
+                            <TextBlock Text="4" Foreground="{StaticResource Accent}" FontWeight="SemiBold" />
+                            <TextBlock Text="Deploy APK" Style="{StaticResource LabelText}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <TabControl Grid.Row="1">
+                    <TabItem Header="Deploy">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="14">
+                                <Border Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Text="APK Package" Style="{StaticResource SectionTitle}" />
+                                        <DockPanel Margin="0,8,0,0">
+                                            <Button DockPanel.Dock="Right" Content="Browse" Click="OnBrowseApk" />
+                                            <TextBox x:Name="ApkPathBox" />
+                                        </DockPanel>
+                                        <CheckBox x:Name="ReplaceExistingBox" Content="Reinstall over existing app" IsChecked="True" />
+                                        <CheckBox x:Name="LaunchAfterInstallBox" Content="Launch after install" Margin="0,8,0,0" />
+                                        <TextBlock Text="Launch package name" Style="{StaticResource LabelText}" Margin="0,10,0,0" />
+                                        <TextBox x:Name="PackageBox" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource PanelBorder}">
+                                    <StackPanel>
+                                        <TextBlock Text="Deployment Run" Style="{StaticResource SectionTitle}" />
+                                        <TextBlock Text="Parallel limit" Style="{StaticResource LabelText}" Margin="0,10,0,0" />
+                                        <TextBox x:Name="ParallelismBox" Text="4" Width="86" HorizontalAlignment="Left" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Style="{StaticResource PrimaryButton}" Content="Install selected" Click="OnInstallSelected" />
+                                            <Button Content="Install all Wi-Fi" Click="OnInstallAll" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem Header="Connect">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="14">
+                                <Border Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Text="Manual Endpoint" Style="{StaticResource SectionTitle}" />
+                                        <TextBlock Text="Display name" Style="{StaticResource LabelText}" Margin="0,10,0,0" />
+                                        <TextBox x:Name="DeviceNameBox" />
+                                        <TextBlock Text="IPv4 address" Style="{StaticResource LabelText}" />
+                                        <TextBox x:Name="HostBox" />
+                                        <TextBlock Text="Port" Style="{StaticResource LabelText}" />
+                                        <TextBox x:Name="PortBox" Text="5555" Width="90" HorizontalAlignment="Left" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Style="{StaticResource PrimaryButton}" Content="Connect" Click="OnConnectManual" />
+                                            <Button Content="Remember" Click="OnRememberManual" />
+                                            <Button Content="Clear remembered" Click="OnClearRemembered" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource PanelBorder}">
+                                    <StackPanel>
+                                        <TextBlock Text="Bootstrap And Identify" Style="{StaticResource SectionTitle}" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                            <Button Style="{StaticResource PrimaryButton}" Content="Enable Wi-Fi ADB" Click="OnEnableWifiFromUsb" />
+                                            <Button Content="Detect selected" Click="OnDetectSelected" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem Header="Network">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="14">
+                                <Border Style="{StaticResource PanelBorder}" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Text="Wi-Fi Profile" Style="{StaticResource SectionTitle}" />
+                                        <Button Content="Load PC profiles" Click="OnLoadWifiProfiles" HorizontalAlignment="Left" Margin="0,10,8,8" />
+                                        <ComboBox x:Name="WifiProfilesBox" DisplayMemberPath="Name" />
+                                        <TextBlock Text="Security" Style="{StaticResource LabelText}" />
+                                        <ComboBox x:Name="WifiSecurityBox" SelectedIndex="1">
+                                            <ComboBoxItem Content="open" />
+                                            <ComboBoxItem Content="wpa2" />
+                                            <ComboBoxItem Content="wpa3" />
+                                        </ComboBox>
+                                        <TextBlock Text="Password" Style="{StaticResource LabelText}" />
+                                        <PasswordBox x:Name="WifiPasswordBox" />
+                                        <CheckBox x:Name="HiddenNetworkBox" Content="Hidden network" />
+                                        <Button Style="{StaticResource PrimaryButton}" Content="Send network to selected" Click="OnProvisionWifi" Margin="0,12,8,8" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource PanelBorder}">
+                                    <StackPanel>
+                                        <TextBlock Text="Certificate / Config File" Style="{StaticResource SectionTitle}" />
+                                        <DockPanel Margin="0,10,0,0">
+                                            <Button DockPanel.Dock="Right" Content="Browse" Click="OnBrowseCertificate" />
+                                            <TextBox x:Name="CertificatePathBox" />
+                                        </DockPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="Stage file" Click="OnStageCertificate" />
+                                            <Button Content="Open Wi-Fi settings" Click="OnOpenWifiSettings" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </Grid>
+
+        <TextBox x:Name="LogBox"
+                 Grid.Row="3"
+                 Margin="0,14,0,0"
+                 IsReadOnly="True"
+                 VerticalScrollBarVisibility="Auto"
+                 TextWrapping="Wrap"
+                 FontFamily="Consolas"
+                 Background="White"
+                 BorderBrush="{StaticResource Line}" />
+    </Grid>
+</Window>

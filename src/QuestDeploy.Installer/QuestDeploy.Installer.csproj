@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>QuestDeploy-v6-Setup</AssemblyName>
+    <Version>0.6.0</Version>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Payload\QuestDeploy-v6-release.zip"
+                      LogicalName="QuestDeploy-v6-release.zip"
+                      Condition="Exists('Payload\QuestDeploy-v6-release.zip')" />
+  </ItemGroup>
+</Project>
