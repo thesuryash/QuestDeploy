@@ -1,24 +1,32 @@
 # Design Notes
 
-The UI follows the deployment pipeline:
+Version 7 is intentionally organized around a professor's repeated classroom workflow:
 
-1. Authorize USB
-2. Enable ADB
-3. Connect Wi-Fi
-4. Deploy APK
+1. Connect or refresh headsets.
+2. Complete one-time Wi-Fi setup for a USB headset when needed.
+3. Choose an APK, files, or a folder.
+4. Deploy to selected headsets.
 
-Main surfaces:
+The primary window contains only two working surfaces:
 
-- Top command bar for refresh, reconnect, clear remembered endpoints, and Wi-Fi ADB bootstrap.
-- Summary tiles for USB-ready, Wi-Fi ADB, network candidates, and selected targets.
-- Visual headset cards with transport badges and status badges.
-- Deploy panel for APK selection, reinstall/launch options, and install actions.
-- Connect panel for manual endpoints, Wi-Fi ADB bootstrap, and detect sound.
-- Network panel for Windows Wi-Fi profiles, Wi-Fi provisioning attempts, and certificate/config staging.
+- A headset list with editable names, connection state, current-network Wi-Fi MAC, model, battery, IP address, identify sound, and contextual Wi-Fi setup.
+- A deployment panel for an optional APK, files/folders, destination directory, launch option, overall progress, and per-device results.
 
-Important product constraints:
+Technical controls such as manual endpoints, hotspot neighbor candidates, parallelism, certificate staging, and Wi-Fi command details are not exposed in Professor Mode.
 
-- A hotspot client is only a network candidate until ADB is enabled and connected.
-- Wi-Fi ADB normally needs USB authorization first.
-- Windows can list Wi-Fi profile names without exposing the saved password in this UI.
-- Silent certificate installation is not implemented because Android/Quest typically requires system UI approval.
+## Device Identity
+
+- A stable ADB serial property is the primary identity when available.
+- USB and Wi-Fi transports reporting the same identity are merged into one headset row.
+- A connected USB transport is preferred for deployment speed; Wi-Fi is used otherwise.
+- Friendly classroom names are persisted with remembered Wi-Fi endpoints.
+- The Wi-Fi MAC is displayed for network administration but is not treated as permanent identity because Android can randomize it per network.
+
+## File Deployment
+
+- The destination must be below `/sdcard/`.
+- `mkdir -p` makes folder creation idempotent.
+- Individual files preserve their names.
+- Selected folders preserve their top-level folder name and relative contents.
+- Each copied file is checked against the remote byte size when the headset supports `stat`.
+- APK and file deployment can be used separately or together.

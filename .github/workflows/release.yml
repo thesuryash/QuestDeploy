@@ -1,0 +1,85 @@
+name: Build and publish Windows release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Validate release tag
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+)$') {
+            throw "Release tags must use vMAJOR.MINOR.PATCH, for example v0.8.1."
+          }
+          "RELEASE_VERSION=$($Matches.version)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Verify Android Platform Tools
+        shell: pwsh
+        run: |
+          $adbDirectory = Join-Path $env:ANDROID_HOME 'platform-tools'
+          $adbPath = Join-Path $adbDirectory 'adb.exe'
+          if (-not (Test-Path -LiteralPath $adbPath)) {
+            throw "adb.exe was not found at $adbPath"
+          }
+          & $adbPath version
+
+      - name: Build self-contained installer
+        shell: pwsh
+        run: |
+          $adbDirectory = Join-Path $env:ANDROID_HOME 'platform-tools'
+          .\scripts\Build-Release.ps1 -Version $env:RELEASE_VERSION -AdbDirectory $adbDirectory
+
+      - name: Create update manifest
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $installerName = "QuestDeploy-v$env:RELEASE_VERSION-Setup.exe"
+          $installerPath = Join-Path 'artifacts' $installerName
+          if (-not (Test-Path -LiteralPath $installerPath)) {
+            throw "Release installer was not found: $installerPath"
+          }
+
+          $manifest = [ordered]@{
+            version = $env:RELEASE_VERSION
+            installerUrl = "https://github.com/${{ github.repository }}/releases/download/$tag/$installerName"
+            sha256 = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash
+            releaseNotesUrl = "https://github.com/${{ github.repository }}/releases/tag/$tag"
+            publishedAt = [DateTimeOffset]::UtcNow.ToString('O')
+          }
+          $manifest | ConvertTo-Json | Set-Content -LiteralPath 'artifacts\QuestDeploy-update.json' -Encoding utf8NoBOM
+          Get-Content -Raw -LiteralPath 'artifacts\QuestDeploy-update.json'
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $installer = "artifacts\QuestDeploy-v$env:RELEASE_VERSION-Setup.exe"
+          $portableZip = "artifacts\QuestDeploy-v$env:RELEASE_VERSION-release.zip"
+          gh release create "${{ github.ref_name }}" $installer $portableZip 'artifacts\QuestDeploy-update.json' `
+            --verify-tag `
+            --title "QuestDeploy ${{ github.ref_name }}" `
+            --generate-notes `
+            --latest

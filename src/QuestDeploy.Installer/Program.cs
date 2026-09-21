@@ -8,7 +8,7 @@ namespace QuestDeploy.Installer;
 internal static class Program
 {
     private const string ProductName = "Quest Deploy";
-    private const string PayloadName = "QuestDeploy-v6-release.zip";
+    private const string PayloadName = "QuestDeploy-release.zip";
 
     [STAThread]
     private static int Main()
@@ -21,8 +21,10 @@ internal static class Program
             InstallPayload(installDirectory);
             var launcherPath = WriteLauncher(installDirectory);
 
+            var version = Assembly.GetExecutingAssembly().GetName().Version;
+            var displayVersion = version is null ? "" : $" {version.Major}.{version.Minor}.{version.Build}";
             var launch = MessageBox.Show(
-                $"{ProductName} v6 was installed to:{Environment.NewLine}{installDirectory}{Environment.NewLine}{Environment.NewLine}Launch it now?",
+                $"{ProductName}{displayVersion} Professor Mode was installed to:{Environment.NewLine}{installDirectory}{Environment.NewLine}{Environment.NewLine}Launch it now?",
                 $"{ProductName} Setup",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Information);
@@ -52,7 +54,8 @@ internal static class Program
     {
         var fullInstallDirectory = Path.GetFullPath(installDirectory);
         var expectedRoot = Path.GetFullPath(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData))
+            .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         if (!fullInstallDirectory.StartsWith(expectedRoot, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Install directory is outside the current user's local app data folder.");
@@ -66,7 +69,8 @@ internal static class Program
         foreach (var entry in archive.Entries)
         {
             var destination = Path.GetFullPath(Path.Combine(fullInstallDirectory, entry.FullName));
-            if (!destination.StartsWith(fullInstallDirectory, StringComparison.OrdinalIgnoreCase))
+            var safeInstallPrefix = fullInstallDirectory.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!destination.StartsWith(safeInstallPrefix, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException("Installer payload contains an unsafe path.");
             }

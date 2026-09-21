@@ -19,9 +19,9 @@ public sealed class StatusBrushConverter : IValueConverter
     private static string Background(string status) =>
         status.ToLowerInvariant() switch
         {
-            "connected" or "done" => "#E4F6E9",
+            "connected" or "done" or "complete" => "#E4F6E9",
             "failed" => "#FDE7E9",
-            "installing" or "launching" or "configuring wi-fi" or "staging file" or "detecting" => "#E8F1FF",
+            "installing" or "installing app" or "launching" or "opening app" or "configuring wi-fi" or "setting up wi-fi" or "staging file" or "copying files" or "detecting" or "identifying" or "connecting" => "#E8F1FF",
             "network only" => "#FFF4CE",
             _ => "#EEF1F5"
         };
@@ -29,9 +29,9 @@ public sealed class StatusBrushConverter : IValueConverter
     private static string Foreground(string status) =>
         status.ToLowerInvariant() switch
         {
-            "connected" or "done" => "#107C41",
+            "connected" or "done" or "complete" => "#107C41",
             "failed" => "#A4262C",
-            "installing" or "launching" or "configuring wi-fi" or "staging file" or "detecting" => "#115EA3",
+            "installing" or "installing app" or "launching" or "opening app" or "configuring wi-fi" or "setting up wi-fi" or "staging file" or "copying files" or "detecting" or "identifying" or "connecting" => "#115EA3",
             "network only" => "#8A6100",
             _ => "#4F5B67"
         };

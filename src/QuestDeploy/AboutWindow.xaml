@@ -1,0 +1,111 @@
+<Window x:Class="QuestDeploy.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="About Quest Classroom Deploy" Height="660" Width="700"
+        MinHeight="560" MinWidth="620" WindowStartupLocation="CenterOwner"
+        Background="#F1F4F6" FontFamily="Segoe UI Variable Text, Segoe UI"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal">
+    <Window.Resources>
+        <SolidColorBrush x:Key="Ink" Color="#15202B" />
+        <SolidColorBrush x:Key="Muted" Color="#4B5B6B" />
+        <SolidColorBrush x:Key="Line" Color="#D5DDE4" />
+        <SolidColorBrush x:Key="Accent" Color="#0F766E" />
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="13,7" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#C5CFD8" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="{StaticResource Accent}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="Margin" Value="0,0,0,7" />
+        </Style>
+        <Style x:Key="BodyText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="LineHeight" Value="20" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="24,20">
+            <DockPanel>
+                <Border DockPanel.Dock="Left" Width="48" Height="48" CornerRadius="11"
+                        Background="{StaticResource Accent}" Margin="0,0,15,0">
+                    <Grid Width="29" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border CornerRadius="9" BorderBrush="White" BorderThickness="2.5" />
+                        <Border Width="11" Height="6" CornerRadius="3" BorderBrush="White" BorderThickness="1.5"
+                                VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,1" />
+                    </Grid>
+                </Border>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Quest Classroom Deploy" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                    <TextBlock x:Name="VersionText" Text="Version 0.8.0" Foreground="{StaticResource Muted}" Margin="0,3,0,0" />
+                    <TextBlock x:Name="UpdateStatusText" Text="Updates are checked manually from GitHub Releases."
+                               Foreground="{StaticResource Accent}" FontSize="12" Margin="0,3,0,0" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="26,22,26,24">
+                <TextBlock Text="Created by" Style="{StaticResource SectionTitle}" />
+                <TextBlock Style="{StaticResource BodyText}">
+                    <Run Text="Suryash Malviya" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                    <Run Text=" created Quest Classroom Deploy for preparing and updating groups of Meta Quest headsets from a Windows computer." />
+                </TextBlock>
+
+                <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Margin="0,20,0,18" />
+
+                <TextBlock Text="What to know" Style="{StaticResource SectionTitle}" />
+                <StackPanel Margin="2,0,0,0">
+                    <TextBlock Text="• Deploys APKs and class files through Android Debug Bridge over USB or local Wi-Fi." Style="{StaticResource BodyText}" Margin="0,0,0,5" />
+                    <TextBlock Text="• Quest Developer Mode and one-time USB debugging authorization are required." Style="{StaticResource BodyText}" Margin="0,0,0,5" />
+                    <TextBlock Text="• The displayed Wi-Fi MAC is for the current network; Android can randomize it on another network." Style="{StaticResource BodyText}" Margin="0,0,0,5" />
+                    <TextBlock Text="• Files are copied to the destination shown before deployment. The default is /sdcard/Download/CourseMedia." Style="{StaticResource BodyText}" Margin="0,0,0,5" />
+                    <TextBlock Text="• Professor Mode does not currently save or send Wi-Fi passwords, install certificates, or manage the Windows hotspot." Style="{StaticResource BodyText}" />
+                </StackPanel>
+
+                <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Margin="0,20,0,18" />
+
+                <TextBlock Text="Licensing and attribution" Style="{StaticResource SectionTitle}" />
+                <TextBlock Style="{StaticResource BodyText}" Margin="0,0,0,9">
+                    <Run Text="QuestDeploy is provided under the MIT License. Copyright © 2026 Suryash Malviya. " />
+                    <Run Text="The software is provided without warranty, as described in the full license." />
+                </TextBlock>
+                <TextBlock Text="The installer includes Android Debug Bridge from Android SDK Platform Tools. Android Platform Tools are separate from QuestDeploy and retain their own notices and licenses." Style="{StaticResource BodyText}" Margin="0,0,0,9" />
+                <TextBlock Text="Meta Quest is a trademark of Meta Platforms, Inc. Quest Classroom Deploy is an independent utility and is not affiliated with or endorsed by Meta." Style="{StaticResource BodyText}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="20,14">
+            <DockPanel LastChildFill="False">
+                <Button DockPanel.Dock="Right" Content="Close" Click="OnClose" Margin="8,0,0,0" />
+                <Button x:Name="CheckUpdatesButton" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}"
+                        Content="Check for updates" Click="OnCheckForUpdates" Margin="8,0,0,0" />
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                    <Button Content="Project source" Click="OnOpenProjectSource" />
+                    <Button Content="MIT license" Click="OnOpenMitLicense" />
+                    <Button Content="Android notices" Click="OnOpenAndroidNotices" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

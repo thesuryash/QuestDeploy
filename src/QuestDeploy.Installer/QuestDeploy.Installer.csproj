@@ -5,15 +5,15 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWindowsForms>true</UseWindowsForms>
-    <AssemblyName>QuestDeploy-v6-Setup</AssemblyName>
-    <Version>0.6.0</Version>
+    <AssemblyName>QuestDeploy-Setup</AssemblyName>
+    <Version>0.8.0</Version>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <SelfContained>false</SelfContained>
+    <SelfContained>true</SelfContained>
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Payload\QuestDeploy-v6-release.zip"
-                      LogicalName="QuestDeploy-v6-release.zip"
-                      Condition="Exists('Payload\QuestDeploy-v6-release.zip')" />
+    <EmbeddedResource Include="Payload\QuestDeploy-release.zip"
+                      LogicalName="QuestDeploy-release.zip"
+                      Condition="Exists('Payload\QuestDeploy-release.zip')" />
   </ItemGroup>
 </Project>

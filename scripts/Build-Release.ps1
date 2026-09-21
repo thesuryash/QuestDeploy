@@ -1,16 +1,22 @@
 param(
-    [string]$Configuration = 'Release'
+    [string]$Configuration = 'Release',
+    [string]$Version = '0.8.0',
+    [string]$AdbDirectory = (Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools')
 )
 
 $ErrorActionPreference = 'Stop'
 
+if ($Version -notmatch '^\d+\.\d+\.\d+$') {
+    throw 'Version must use MAJOR.MINOR.PATCH format, for example 0.8.1.'
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 $artifacts = Join-Path $root 'artifacts'
-$appOutput = Join-Path $artifacts 'QuestDeploy-v6'
-$appZip = Join-Path $artifacts 'QuestDeploy-v6-release.zip'
-$installerPayload = Join-Path $root 'src\QuestDeploy.Installer\Payload\QuestDeploy-v6-release.zip'
+$appOutput = Join-Path $artifacts "QuestDeploy-v$Version"
+$appZip = Join-Path $artifacts "QuestDeploy-v$Version-release.zip"
+$installerPayload = Join-Path $root 'src\QuestDeploy.Installer\Payload\QuestDeploy-release.zip'
 $installerOutput = Join-Path $artifacts 'installer'
-$setupExe = Join-Path $artifacts 'QuestDeploy-v6-Setup.exe'
+$setupExe = Join-Path $artifacts "QuestDeploy-v$Version-Setup.exe"
 
 function Invoke-Checked {
     param(
@@ -29,8 +35,30 @@ function Invoke-Checked {
 New-Item -ItemType Directory -Force $artifacts | Out-Null
 New-Item -ItemType Directory -Force (Split-Path -Parent $installerPayload) | Out-Null
 
-Invoke-Checked { dotnet restore (Join-Path $root 'src\QuestDeploy\QuestDeploy.csproj') } 'App restore'
-Invoke-Checked { dotnet publish (Join-Path $root 'src\QuestDeploy\QuestDeploy.csproj') -c $Configuration --no-restore -o $appOutput } 'App publish'
+$artifactsRoot = [IO.Path]::GetFullPath($artifacts).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+foreach ($directory in @($appOutput, $installerOutput)) {
+    $resolvedDirectory = [IO.Path]::GetFullPath($directory)
+    if (-not $resolvedDirectory.StartsWith($artifactsRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to clean release directory outside artifacts: $resolvedDirectory"
+    }
+    if (Test-Path -LiteralPath $resolvedDirectory) {
+        Remove-Item -LiteralPath $resolvedDirectory -Recurse -Force
+    }
+}
+
+$appProject = Join-Path $root 'src\QuestDeploy\QuestDeploy.csproj'
+Invoke-Checked { dotnet restore $appProject -r win-x64 } 'App restore'
+Invoke-Checked { dotnet publish $appProject -c $Configuration -r win-x64 --self-contained true --no-restore -p:Version=$Version -o $appOutput } 'App publish'
+
+$platformToolsOutput = Join-Path $appOutput 'platform-tools'
+New-Item -ItemType Directory -Force $platformToolsOutput | Out-Null
+foreach ($fileName in @('adb.exe', 'AdbWinApi.dll', 'AdbWinUsbApi.dll', 'NOTICE.txt')) {
+    $source = Join-Path $AdbDirectory $fileName
+    if (-not (Test-Path -LiteralPath $source)) {
+        throw "Required Android Platform Tools file was not found: $source"
+    }
+    Copy-Item -LiteralPath $source -Destination (Join-Path $platformToolsOutput $fileName) -Force
+}
 
 if (Test-Path $appZip) {
     Remove-Item -LiteralPath $appZip -Force
@@ -38,9 +66,10 @@ if (Test-Path $appZip) {
 Compress-Archive -Path (Join-Path $appOutput '*') -DestinationPath $appZip -Force
 Copy-Item -LiteralPath $appZip -Destination $installerPayload -Force
 
-Invoke-Checked { dotnet restore (Join-Path $root 'src\QuestDeploy.Installer\QuestDeploy.Installer.csproj') -r win-x64 } 'Installer restore'
-Invoke-Checked { dotnet publish (Join-Path $root 'src\QuestDeploy.Installer\QuestDeploy.Installer.csproj') -c $Configuration --no-restore -p:PublishSingleFile=true -o $installerOutput } 'Installer publish'
-Copy-Item -LiteralPath (Join-Path $installerOutput 'QuestDeploy-v6-Setup.exe') -Destination $setupExe -Force
+$installerProject = Join-Path $root 'src\QuestDeploy.Installer\QuestDeploy.Installer.csproj'
+Invoke-Checked { dotnet restore $installerProject -r win-x64 } 'Installer restore'
+Invoke-Checked { dotnet publish $installerProject -c $Configuration -r win-x64 --self-contained true --no-restore -p:Version=$Version -p:PublishSingleFile=true -o $installerOutput } 'Installer publish'
+Copy-Item -LiteralPath (Join-Path $installerOutput 'QuestDeploy-Setup.exe') -Destination $setupExe -Force
 
 Write-Host "Release output:"
 Write-Host "  $appZip"

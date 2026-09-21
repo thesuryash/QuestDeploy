@@ -1,7 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Microsoft.Win32;
 using QuestDeploy.Models;
 using QuestDeploy.Services;
@@ -12,46 +16,83 @@ public partial class MainWindow : Window
 {
     private readonly AdbService _adb = new();
     private readonly DeviceStore _store = new();
-    private readonly WindowsWifiProfileService _wifiProfiles = new();
-    private readonly NetworkDiscoveryService _networkDiscovery = new();
+    private bool _changingSelection;
+    private bool _isBusy;
 
     public ObservableCollection<QuestDevice> Devices { get; } = [];
-    public ObservableCollection<WifiProfile> WifiProfiles { get; } = [];
+    public ObservableCollection<string> DeploymentItems { get; } = [];
 
     public MainWindow()
     {
         InitializeComponent();
         DataContext = this;
-        WifiProfilesBox.ItemsSource = WifiProfiles;
         Devices.CollectionChanged += OnDevicesCollectionChanged;
+        DeploymentItems.CollectionChanged += (_, _) => UpdateDeploymentSummary();
         Loaded += OnLoaded;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        _adb.TryLocateAdb();
-        AdbStatusText.Text = _adb.AdbPath.Length == 0
-            ? "ADB not found. Install Android SDK Platform Tools or set QUEST_DEPLOY_ADB."
-            : $"ADB: {_adb.AdbPath}";
+        if (!_adb.TryLocateAdb())
+        {
+            AdbStatusText.Text = "Android Platform Tools were not found. Reinstall Quest Classroom Deploy or set QUEST_DEPLOY_ADB.";
+            ActivityStateText.Text = "Android tools missing";
+            ActivityDetailText.Text = "ADB is required to communicate with Quest headsets.";
+            DeployButton.IsEnabled = false;
+            return;
+        }
 
+        AdbStatusText.Text = "Android tools ready";
         foreach (var saved in await _store.LoadAsync())
         {
-            Devices.Add(new QuestDevice
+            var device = new QuestDevice
             {
                 Name = saved.Name,
+                Identity = saved.Identity,
+                Model = saved.Model,
                 Host = saved.Host,
                 Port = saved.Port,
-                Serial = $"{saved.Host}:{saved.Port}",
-                Transport = "Wi-Fi",
-                Status = "Known"
-            });
+                MacAddress = saved.MacAddress,
+                Status = "Remembered"
+            };
+            Devices.Add(device);
         }
 
         UpdateSummary();
-        await RefreshDevicesAsync();
+        await ReconnectKnownAsync(showDialog: false);
     }
 
-    private async void OnRefresh(object sender, RoutedEventArgs e) => await RefreshDevicesAsync();
+    private void OnRestartApplication(object sender, RoutedEventArgs e)
+    {
+        var executablePath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
+        {
+            MessageBox.Show(this, "The application executable could not be located.", "Restart unavailable", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = executablePath,
+            UseShellExecute = true
+        });
+        Application.Current.Shutdown();
+    }
+
+    private void OnExitApplication(object sender, RoutedEventArgs e) =>
+        Application.Current.Shutdown();
+
+    private void OnShowAbout(object sender, RoutedEventArgs e)
+    {
+        var about = new AboutWindow
+        {
+            Owner = this
+        };
+        about.ShowDialog();
+    }
+
+    private async void OnRefresh(object sender, RoutedEventArgs e) =>
+        await RunBusyActionAsync("Checking headsets", RefreshDevicesAsync);
 
     private void OnBrowseApk(object sender, RoutedEventArgs e)
     {
@@ -63,422 +104,343 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) == true)
         {
             ApkPathBox.Text = dialog.FileName;
+            UpdateDeploymentSummary();
         }
     }
 
-    private async void OnConnectManual(object sender, RoutedEventArgs e)
+    private void OnAddFiles(object sender, RoutedEventArgs e)
     {
-        await RunUiActionAsync("Connect headset", async token =>
+        var dialog = new OpenFileDialog
         {
-            var port = ReadPort();
-            var endpoint = await _adb.ConnectAsync(HostBox.Text, port, token);
-            UpsertDevice(new QuestDevice
+            Title = "Choose videos, audio, or class files",
+            Filter = "All supported files|*.mp4;*.mkv;*.mov;*.webm;*.mp3;*.wav;*.m4a;*.pdf;*.json;*.xml;*.txt;*.csv;*.zip|All files (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = true
+        };
+        if (dialog.ShowDialog(this) == true)
+        {
+            AddDeploymentItems(dialog.FileNames);
+        }
+    }
+
+    private void OnAddFolder(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Choose a folder to copy to every headset",
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) == true)
+        {
+            AddDeploymentItems([dialog.FolderName]);
+        }
+    }
+
+    private void OnClearContent(object sender, RoutedEventArgs e)
+    {
+        DeploymentItems.Clear();
+        ApkPathBox.Clear();
+        UpdateDeploymentSummary();
+    }
+
+    private void AddDeploymentItems(IEnumerable<string> paths)
+    {
+        foreach (var path in paths.Select(Path.GetFullPath))
+        {
+            if (!DeploymentItems.Contains(path, StringComparer.OrdinalIgnoreCase))
             {
-                Name = string.IsNullOrWhiteSpace(DeviceNameBox.Text) ? "Quest headset" : DeviceNameBox.Text.Trim(),
-                Host = HostBox.Text.Trim(),
-                Port = port,
-                Serial = endpoint,
-                Transport = "Wi-Fi",
-                Status = "Connected",
-                IsSelected = true
-            });
-            await SaveKnownAsync();
-            await RefreshDevicesAsync();
-        });
+                DeploymentItems.Add(path);
+            }
+        }
+        UpdateDeploymentSummary();
     }
 
-    private async void OnRememberManual(object sender, RoutedEventArgs e)
+    private void OnLaunchOptionChanged(object sender, RoutedEventArgs e)
     {
-        var port = ReadPort();
-        UpsertDevice(new QuestDevice
+        if (PackageBox is not null && LaunchAfterInstallBox is not null)
         {
-            Name = string.IsNullOrWhiteSpace(DeviceNameBox.Text) ? "Quest headset" : DeviceNameBox.Text.Trim(),
-            Host = HostBox.Text.Trim(),
-            Port = port,
-            Serial = $"{HostBox.Text.Trim()}:{port}",
-            Transport = "Wi-Fi",
-            Status = "Known"
-        });
-        await SaveKnownAsync();
+            PackageBox.IsEnabled = LaunchAfterInstallBox.IsChecked == true;
+        }
     }
 
-    private async void OnClearRemembered(object sender, RoutedEventArgs e)
+    private void OnSelectAll(object sender, RoutedEventArgs e)
     {
-        var result = MessageBox.Show(
-            this,
-            "Clear remembered Wi-Fi endpoints and network candidates from this app?",
-            "Clear remembered devices",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-        if (result != MessageBoxResult.Yes)
+        if (_changingSelection)
         {
             return;
         }
 
-        await _store.ClearAsync();
-        for (var index = Devices.Count - 1; index >= 0; index--)
+        var selected = SelectAllBox.IsChecked == true;
+        foreach (var device in Devices.Where(device => device.IsConnected))
         {
-            var device = Devices[index];
-            if (device.Transport is "Wi-Fi" or "Candidate" &&
-                device.Status is not "Connected")
-            {
-                Devices.RemoveAt(index);
-            }
+            device.IsSelected = selected;
         }
         UpdateSummary();
-        AppendLog("Cleared remembered endpoints and stale candidates.");
     }
 
-    private async void OnFindHotspotClients(object sender, RoutedEventArgs e)
+    private async void OnDeviceNameChanged(object sender, KeyboardFocusChangedEventArgs e)
     {
-        await RunUiActionAsync("Find hotspot clients", async token =>
-        {
-            var addresses = await _networkDiscovery.GetNeighborIpv4AddressesAsync(token);
-            for (var index = Devices.Count - 1; index >= 0; index--)
-            {
-                if (Devices[index].Transport == "Candidate")
-                {
-                    Devices.RemoveAt(index);
-                }
-            }
-
-            var added = 0;
-            foreach (var address in addresses)
-            {
-                if (Devices.Any(device => string.Equals(device.Host, address, StringComparison.OrdinalIgnoreCase)))
-                {
-                    continue;
-                }
-
-                var candidate = new QuestDevice
-                {
-                    Name = "Network client",
-                    Host = address,
-                    Port = 5555,
-                    Serial = $"{address}:5555",
-                    Transport = "Candidate",
-                    Status = "Network only",
-                    Detail = "ADB not connected"
-                };
-                Devices.Add(candidate);
-                SubscribeDevice(candidate);
-                added++;
-            }
-            UpdateSummary();
-            AppendLog($"Found {addresses.Count} network clients; added {added} new candidate rows.");
-        });
+        await SaveKnownAsync();
+        UpdateSummary();
     }
 
-    private async void OnConnectSelectedCandidate(object sender, RoutedEventArgs e)
+    private async void OnIdentifyDevice(object sender, RoutedEventArgs e)
     {
-        if (DevicesGrid.SelectedItem is not QuestDevice { Host.Length: > 0 } device)
+        if ((sender as Button)?.CommandParameter is not QuestDevice device || !device.IsConnected)
         {
-            MessageBox.Show(this, "Select a network candidate or Wi-Fi row first.", "No IP selected", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        await RunUiActionAsync("Connect selected IP", async token =>
+        await RunBusyActionAsync("Identifying headset", async token =>
         {
-            var endpoint = await _adb.ConnectAsync(device.Host, device.Port, token);
-            device.Serial = endpoint;
-            device.Transport = "Wi-Fi";
+            device.Status = "Identifying";
+            device.Detail = "Playing a sound inside this headset";
+            await _adb.PlayDetectSoundAsync(device.PreferredSerial, token);
             device.Status = "Connected";
-            device.Detail = "";
-            device.IsSelected = true;
-            device.NotifyEndpointChanged();
-            UpdateSummary();
-            await SaveKnownAsync();
-            await RefreshDevicesAsync();
+            device.Detail = "Identification sound sent";
+            SetFooter($"Identification sound sent to {device.Name}.");
         });
     }
 
-    private async void OnReconnectKnown(object sender, RoutedEventArgs e)
+    private async void OnEnableWifiForDevice(object sender, RoutedEventArgs e)
     {
-        await RunUiActionAsync("Reconnect known devices", async token =>
+        if ((sender as Button)?.CommandParameter is not QuestDevice { HasUsb: true } device)
         {
-            foreach (var device in Devices.Where(device => device.Transport == "Wi-Fi").ToList())
+            MessageBox.Show(this, "Connect the headset by USB and press Refresh headsets first.", "USB headset required", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        await RunBusyActionAsync("Setting up Wi-Fi", async token =>
+        {
+            device.Status = "Setting up Wi-Fi";
+            device.Detail = "Enabling wireless ADB and verifying this headset";
+            var endpoint = await _adb.EnableWifiAdbFromUsbAsync(device.UsbSerial, 5555, token);
+            if (TrySplitEndpoint(endpoint, out var host, out var port))
+            {
+                device.Host = host;
+                device.Port = port;
+                device.WifiSerial = endpoint;
+            }
+            device.Status = "Connected";
+            device.Detail = "Wi-Fi is ready; the USB cable can be removed";
+            await RefreshDevicesAsync(token);
+            await SaveKnownAsync();
+            SetFooter($"Wi-Fi configured for {device.Name} at {endpoint}.");
+        });
+    }
+
+    private async void OnReconnectKnown(object sender, RoutedEventArgs e) =>
+        await ReconnectKnownAsync(showDialog: true);
+
+    private async Task ReconnectKnownAsync(bool showDialog)
+    {
+        await RunBusyActionAsync("Reconnecting remembered headsets", async token =>
+        {
+            foreach (var device in Devices.Where(device => device.Host.Length > 0).ToList())
             {
                 try
                 {
-                    await _adb.ConnectAsync(device.Host, device.Port, token);
+                    device.Status = "Connecting";
+                    var endpoint = await _adb.ConnectAsync(device.Host, device.Port, token);
+                    device.WifiSerial = endpoint;
                     device.Status = "Connected";
                     device.Detail = "";
                 }
                 catch (Exception exception)
                 {
-                    device.Status = "Failed";
-                    device.Detail = exception.Message;
+                    device.Status = "Remembered";
+                    device.Detail = "Not currently reachable";
+                    SetFooter($"Could not reconnect {device.Name}: {exception.Message}");
                 }
             }
 
-            await RefreshDevicesAsync();
-        });
+            await RefreshDevicesAsync(token);
+        }, showDialog);
     }
 
-    private async void OnEnableWifiFromUsb(object sender, RoutedEventArgs e)
+    private async void OnDeploy(object sender, RoutedEventArgs e)
     {
-        if (GetUsbBootstrapDevice() is not { } device)
-        {
-            MessageBox.Show(
-                this,
-                "No connected USB headset was found. Plug the headset in with USB, accept the debugging prompt inside the headset, then click Refresh devices.",
-                "USB headset required",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
-        }
-
-        await RunUiActionAsync("Enable Wi-Fi ADB", async token =>
-        {
-            var endpoint = await _adb.EnableWifiAdbFromUsbAsync(device.Serial, 5555, token);
-            AppendLog($"Enabled Wi-Fi ADB for {device.Name}: {endpoint}");
-            await RefreshDevicesAsync();
-        });
-    }
-
-    private async void OnDetectSelected(object sender, RoutedEventArgs e)
-    {
-        if (GetSelectedDevice() is not { } device)
-        {
-            MessageBox.Show(this, "Select a connected headset first.", "No headset selected", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        await RunUiActionAsync("Detect headset", async token =>
-        {
-            device.Status = "Detecting";
-            await _adb.PlayDetectSoundAsync(device.Serial, token);
-            device.Status = "Connected";
-            AppendLog($"Sent detect sound to {device.Name}.");
-        });
-    }
-
-    private async void OnLoadWifiProfiles(object sender, RoutedEventArgs e)
-    {
-        await RunUiActionAsync("Load PC Wi-Fi networks", async token =>
-        {
-            WifiProfiles.Clear();
-            foreach (var profile in await _wifiProfiles.GetProfilesAsync(token))
-            {
-                WifiProfiles.Add(profile);
-            }
-            if (WifiProfiles.Count > 0)
-            {
-                WifiProfilesBox.SelectedIndex = 0;
-            }
-        });
-    }
-
-    private async void OnProvisionWifi(object sender, RoutedEventArgs e)
-    {
-        if (GetSelectedDevice() is not { } device)
-        {
-            MessageBox.Show(this, "Select the headset to configure.", "No headset selected", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-        if (WifiProfilesBox.SelectedItem is not WifiProfile profile)
-        {
-            MessageBox.Show(this, "Load and select a PC Wi-Fi profile first.", "No network selected", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        var security = (WifiSecurityBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "wpa2";
-        await RunUiActionAsync("Send Wi-Fi network", async token =>
-        {
-            device.Status = "Configuring Wi-Fi";
-            device.Detail = profile.Name;
-            await _adb.ProvisionWifiNetworkAsync(
-                device.Serial,
-                profile.Name,
-                security,
-                WifiPasswordBox.Password,
-                HiddenNetworkBox.IsChecked == true,
-                token);
-            device.Status = "Connected";
-            device.Detail = $"Sent network {profile.Name}";
-        });
-    }
-
-    private void OnBrowseCertificate(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog
-        {
-            Filter = "Certificates and configs (*.cer;*.crt;*.pem;*.p12;*.pfx;*.mobileconfig;*.json;*.xml)|*.cer;*.crt;*.pem;*.p12;*.pfx;*.mobileconfig;*.json;*.xml|All files (*.*)|*.*",
-            CheckFileExists = true
-        };
-        if (dialog.ShowDialog(this) == true)
-        {
-            CertificatePathBox.Text = dialog.FileName;
-        }
-    }
-
-    private async void OnStageCertificate(object sender, RoutedEventArgs e)
-    {
-        if (GetSelectedDevice() is not { } device)
-        {
-            MessageBox.Show(this, "Select the headset to receive the file.", "No headset selected", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        await RunUiActionAsync("Stage certificate/config", async token =>
-        {
-            device.Status = "Staging file";
-            await _adb.StageFileAsync(device.Serial, CertificatePathBox.Text, "/sdcard/Download/QuestDeploy", token);
-            device.Status = "Connected";
-            device.Detail = "Staged in Download/QuestDeploy";
-        });
-    }
-
-    private async void OnOpenWifiSettings(object sender, RoutedEventArgs e)
-    {
-        if (GetSelectedDevice() is not { } device)
-        {
-            MessageBox.Show(this, "Select the headset first.", "No headset selected", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        await RunUiActionAsync("Open Wi-Fi settings", async token =>
-        {
-            await _adb.OpenWifiSettingsAsync(device.Serial, token);
-        });
-    }
-
-    private async void OnInstallSelected(object sender, RoutedEventArgs e) =>
-        await InstallAsync(Devices.Where(device => device.IsSelected).ToList());
-
-    private async void OnInstallAll(object sender, RoutedEventArgs e) =>
-        await InstallAsync(Devices.Where(device => device.Transport == "Wi-Fi" && device.Status == "Connected").ToList());
-
-    private async Task InstallAsync(IReadOnlyList<QuestDevice> targets)
-    {
+        var targets = Devices.Where(device => device is { IsSelected: true, IsConnected: true }).ToList();
         if (targets.Count == 0)
         {
-            MessageBox.Show(this, "Select at least one connected Wi-Fi headset.", "No targets", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, "Select at least one connected headset.", "No headsets selected", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var parallelism = ReadParallelism();
-        await RunUiActionAsync("Install APK", async token =>
+        var hasApk = !string.IsNullOrWhiteSpace(ApkPathBox.Text);
+        if (!hasApk && DeploymentItems.Count == 0)
         {
-            using var gate = new SemaphoreSlim(Math.Min(parallelism, targets.Count));
+            MessageBox.Show(this, "Choose an APK, class files, or a folder to deploy.", "Nothing to deploy", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (LaunchAfterInstallBox.IsChecked == true && string.IsNullOrWhiteSpace(PackageBox.Text))
+        {
+            MessageBox.Show(this, "Enter the Android package name before enabling Open the app when finished.", "Package name required", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var apkPath = ApkPathBox.Text;
+        var remoteDirectory = TargetFolderBox.Text;
+        var items = DeploymentItems.ToList();
+        var replace = ReplaceExistingBox.IsChecked == true;
+        var launch = LaunchAfterInstallBox.IsChecked == true;
+        var packageName = PackageBox.Text.Trim();
+
+        await RunBusyActionAsync("Deploying class content", async token =>
+        {
+            var completed = 0;
+            var failed = 0;
+            DeploymentProgress.IsIndeterminate = false;
+            DeploymentProgress.Value = 0;
+            ActivityCountText.Text = $"0 of {targets.Count}";
+            using var gate = new SemaphoreSlim(Math.Min(4, targets.Count));
             var tasks = targets.Select(async device =>
             {
                 await gate.WaitAsync(token);
                 try
                 {
-                    device.Status = "Installing";
-                    device.Detail = "";
-                    await _adb.InstallApkAsync(device.Serial, ApkPathBox.Text, ReplaceExistingBox.IsChecked == true, token);
-                    if (LaunchAfterInstallBox.IsChecked == true && !string.IsNullOrWhiteSpace(PackageBox.Text))
+                    var serial = device.PreferredSerial;
+                    if (hasApk)
                     {
-                        device.Status = "Launching";
-                        await _adb.LaunchPackageAsync(device.Serial, PackageBox.Text.Trim(), token);
+                        device.Status = "Installing app";
+                        device.Detail = Path.GetFileName(apkPath);
+                        await _adb.InstallApkAsync(serial, apkPath, replace, token);
                     }
-                    device.Status = "Done";
-                    AppendLog($"{device.Name} installed successfully.");
+
+                    foreach (var item in items)
+                    {
+                        device.Status = "Copying files";
+                        var progress = new Progress<string>(name => device.Detail = name);
+                        await _adb.StagePathAsync(serial, item, remoteDirectory, progress, token);
+                    }
+
+                    if (launch)
+                    {
+                        device.Status = "Opening app";
+                        device.Detail = packageName;
+                        await _adb.LaunchPackageAsync(serial, packageName, token);
+                    }
+
+                    device.Status = "Complete";
+                    device.Detail = "App and files verified";
                 }
                 catch (Exception exception)
                 {
+                    Interlocked.Increment(ref failed);
                     device.Status = "Failed";
                     device.Detail = exception.Message;
-                    AppendLog($"{device.Name} failed: {exception.Message}");
+                    SetFooter($"{device.Name} failed: {exception.Message}");
                 }
                 finally
                 {
+                    var finished = Interlocked.Increment(ref completed);
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        DeploymentProgress.Value = finished * 100d / targets.Count;
+                        ActivityCountText.Text = $"{finished} of {targets.Count}";
+                    });
                     gate.Release();
                 }
             });
 
             await Task.WhenAll(tasks);
+            ActivityStateText.Text = failed == 0 ? "Deployment complete" : "Deployment finished with errors";
+            ActivityDetailText.Text = failed == 0
+                ? $"App and files were deployed to {targets.Count} headset(s)."
+                : $"{targets.Count - failed} succeeded and {failed} failed. Check the affected headset row.";
+            SetFooter(ActivityDetailText.Text);
         });
     }
 
-    private async Task RefreshDevicesAsync()
+    private async Task RefreshDevicesAsync(CancellationToken cancellationToken = default)
     {
-        await RunUiActionAsync("Refresh devices", async token =>
+        var discovered = await _adb.GetDevicesAsync(cancellationToken);
+        foreach (var existing in Devices)
         {
-            var discovered = await _adb.GetDevicesAsync(token);
-            var discoveredSerials = discovered
-                .Select(device => device.Serial)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            for (var index = Devices.Count - 1; index >= 0; index--)
-            {
-                var device = Devices[index];
-                if (device.Transport == "USB" &&
-                    !discoveredSerials.Contains(device.Serial))
-                {
-                    Devices.RemoveAt(index);
-                }
-            }
-
-            foreach (var device in discovered)
-            {
-                UpsertDevice(device);
-            }
-
-            foreach (var known in Devices.Where(device => device.Transport == "Wi-Fi").ToList())
-            {
-                if (discovered.All(device => !string.Equals(device.Serial, known.Serial, StringComparison.OrdinalIgnoreCase)) &&
-                    known.Status == "Connected")
-                {
-                    known.Status = "Known";
-                }
-            }
-            UpdateSummary();
-        }, showFailureDialog: false);
-    }
-
-    private QuestDevice? GetSelectedDevice() =>
-        DevicesGrid.SelectedItem as QuestDevice ??
-        Devices.FirstOrDefault(device => device.IsSelected && device.Status == "Connected") ??
-        Devices.FirstOrDefault(device => device.Status == "Connected");
-
-    private QuestDevice? GetUsbBootstrapDevice()
-    {
-        if (DevicesGrid.SelectedItem is QuestDevice { Transport: "USB", Status: "Connected" } selectedUsb)
-        {
-            return selectedUsb;
+            existing.ResetLiveConnections();
         }
 
-        var checkedUsbDevices = Devices
-            .Where(device => device is { Transport: "USB", Status: "Connected", IsSelected: true })
-            .ToList();
-        if (checkedUsbDevices.Count == 1)
+        foreach (var incoming in discovered)
         {
-            return checkedUsbDevices[0];
+            UpsertDevice(incoming);
         }
 
-        var connectedUsbDevices = Devices
-            .Where(device => device is { Transport: "USB", Status: "Connected" })
-            .ToList();
-        return connectedUsbDevices.Count == 1 ? connectedUsbDevices[0] : null;
+        for (var index = Devices.Count - 1; index >= 0; index--)
+        {
+            var device = Devices[index];
+            if (!device.IsConnected && device.Host.Length == 0)
+            {
+                Devices.RemoveAt(index);
+            }
+        }
+
+        await SaveKnownAsync();
+        UpdateSummary();
+        SetFooter($"Headset check complete: {Devices.Count(device => device.IsConnected)} connected.");
     }
 
     private void UpsertDevice(QuestDevice incoming)
     {
-        var existing = Devices.FirstOrDefault(device =>
-            string.Equals(device.Serial, incoming.Serial, StringComparison.OrdinalIgnoreCase) ||
-            (!string.IsNullOrWhiteSpace(incoming.Host) && string.Equals(device.Host, incoming.Host, StringComparison.OrdinalIgnoreCase) && device.Port == incoming.Port));
+        var endpointMatch = incoming.Host.Length == 0
+            ? null
+            : Devices.FirstOrDefault(device => device.Host.Equals(incoming.Host, StringComparison.OrdinalIgnoreCase) && device.Port == incoming.Port);
+        var identityMatch = incoming.Identity.Length == 0
+            ? null
+            : Devices.FirstOrDefault(device => device.Identity.Equals(incoming.Identity, StringComparison.OrdinalIgnoreCase));
+        var existing = endpointMatch ?? identityMatch;
 
         if (existing is null)
         {
             Devices.Add(incoming);
             SubscribeDevice(incoming);
-            UpdateSummary();
             return;
         }
 
-        existing.Name = string.IsNullOrWhiteSpace(existing.Name) ? incoming.Name : existing.Name;
-        existing.Serial = incoming.Serial;
-        existing.Host = incoming.Host;
-        existing.Port = incoming.Port;
-        existing.Transport = incoming.Transport;
-        existing.Status = incoming.Status;
-        existing.Detail = incoming.Detail;
-        existing.IsSelected = existing.IsSelected || incoming.IsSelected;
-        existing.NotifyEndpointChanged();
-        UpdateSummary();
+        if (endpointMatch is not null && identityMatch is not null && !ReferenceEquals(endpointMatch, identityMatch))
+        {
+            MergeDevice(endpointMatch, identityMatch);
+            Devices.Remove(identityMatch);
+            existing = endpointMatch;
+        }
+
+        MergeDevice(existing, incoming);
+    }
+
+    private static void MergeDevice(QuestDevice target, QuestDevice source)
+    {
+        if (target.Name is "" or "Quest headset" || target.Name.Equals(target.Model, StringComparison.OrdinalIgnoreCase))
+        {
+            target.Name = source.Name;
+        }
+        if (source.Identity.Length > 0)
+        {
+            target.Identity = source.Identity;
+        }
+        if (source.Model.Length > 0)
+        {
+            target.Model = source.Model;
+        }
+        if (source.UsbSerial.Length > 0)
+        {
+            target.UsbSerial = source.UsbSerial;
+        }
+        if (source.WifiSerial.Length > 0)
+        {
+            target.WifiSerial = source.WifiSerial;
+            target.Host = source.Host;
+            target.Port = source.Port;
+        }
+        if (source.MacAddress.Length > 0)
+        {
+            target.MacAddress = source.MacAddress;
+        }
+        if (source.BatteryPercent is not null)
+        {
+            target.BatteryPercent = source.BatteryPercent;
+        }
+        target.Status = source.Status;
+        target.Detail = source.Detail;
+        target.IsSelected = target.IsSelected || source.IsSelected;
     }
 
     private void OnDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -499,9 +461,9 @@ public partial class MainWindow : Window
         device.PropertyChanged += OnDevicePropertyChanged;
     }
 
-    private void OnDevicePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnDevicePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(QuestDevice.IsSelected) or nameof(QuestDevice.Transport) or nameof(QuestDevice.Status))
+        if (e.PropertyName is nameof(QuestDevice.IsSelected) or nameof(QuestDevice.Status) or nameof(QuestDevice.IsConnected) or nameof(QuestDevice.HasUsb) or nameof(QuestDevice.HasWifi))
         {
             UpdateSummary();
         }
@@ -509,59 +471,99 @@ public partial class MainWindow : Window
 
     private void UpdateSummary()
     {
-        UsbCountText.Text = Devices.Count(device => device is { Transport: "USB", Status: "Connected" }).ToString();
-        WifiCountText.Text = Devices.Count(device => device is { Transport: "Wi-Fi", Status: "Connected" }).ToString();
-        CandidateCountText.Text = Devices.Count(device => device.Transport == "Candidate").ToString();
-        SelectedCountText.Text = Devices.Count(device => device.IsSelected).ToString();
+        if (!IsLoaded && ReadyCountText is null)
+        {
+            return;
+        }
+
+        var connected = Devices.Where(device => device.IsConnected).ToList();
+        var selected = connected.Count(device => device.IsSelected);
+        ReadyCountText.Text = $"{connected.Count} ready";
+        DeviceSummaryText.Text = $"{connected.Count} connected | {selected} selected";
+        EmptyState.Visibility = Devices.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        _changingSelection = true;
+        SelectAllBox.IsChecked = connected.Count > 0 && connected.All(device => device.IsSelected);
+        _changingSelection = false;
+        UpdateDeploymentSummary();
+    }
+
+    private void UpdateDeploymentSummary()
+    {
+        if (DeployButton is null)
+        {
+            return;
+        }
+
+        var targets = Devices.Count(device => device is { IsConnected: true, IsSelected: true });
+        var contentCount = DeploymentItems.Count + (string.IsNullOrWhiteSpace(ApkPathBox?.Text) ? 0 : 1);
+        DeployButton.Content = targets == 0 ? "Deploy to selected headsets" : $"Deploy to {targets} headset{(targets == 1 ? "" : "s")}";
+        if (!_isBusy)
+        {
+            DeployButton.IsEnabled = targets > 0 && contentCount > 0;
+        }
+        ActivityCountText.Text = contentCount == 0 ? "" : $"{contentCount} item{(contentCount == 1 ? "" : "s")}";
     }
 
     private async Task SaveKnownAsync()
     {
         await _store.SaveAsync(Devices
-            .Where(device => device.Transport == "Wi-Fi" && !string.IsNullOrWhiteSpace(device.Host))
-            .Select(device => new SavedDevice(device.Name, device.Host, device.Port)));
+            .Where(device => device.Host.Length > 0)
+            .Select(device => new SavedDevice(device.Name, device.Host, device.Port, device.Identity, device.MacAddress, device.Model)));
     }
 
-    private async Task RunUiActionAsync(string label, Func<CancellationToken, Task> action, bool showFailureDialog = true)
+    private async Task RunBusyActionAsync(
+        string label,
+        Func<CancellationToken, Task> action,
+        bool showFailureDialog = true)
     {
+        if (_isBusy)
+        {
+            return;
+        }
+
+        _isBusy = true;
+        DeployButton.IsEnabled = false;
+        ActivityStateText.Text = label;
+        ActivityDetailText.Text = "Please keep the computer and headsets connected.";
+        DeploymentProgress.IsIndeterminate = true;
+        SetFooter($"{label}...");
         try
         {
-            AppendLog($"{label}...");
             using var source = new CancellationTokenSource();
             await action(source.Token);
-            AppendLog($"{label} complete.");
         }
         catch (Exception exception)
         {
-            AppendLog($"{label} failed: {exception.Message}");
+            ActivityStateText.Text = $"{label} failed";
+            ActivityDetailText.Text = exception.Message;
+            SetFooter($"{label} failed: {exception.Message}");
             if (showFailureDialog)
             {
                 MessageBox.Show(this, exception.Message, label, MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-    }
-
-    private int ReadPort()
-    {
-        if (!int.TryParse(PortBox.Text, out var port) || port is < 1 or > 65535)
+        finally
         {
-            throw new ArgumentException("Port must be a number from 1 to 65535.");
+            DeploymentProgress.IsIndeterminate = false;
+            _isBusy = false;
+            UpdateSummary();
         }
-        return port;
     }
 
-    private int ReadParallelism()
+    private void SetFooter(string message) =>
+        FooterStatusText.Text = $"[{DateTime.Now:HH:mm:ss}] {message}";
+
+    private static bool TrySplitEndpoint(string endpoint, out string host, out int port)
     {
-        if (!int.TryParse(ParallelismBox.Text, out var value) || value is < 1 or > 16)
+        host = "";
+        port = 0;
+        var separator = endpoint.LastIndexOf(':');
+        if (separator <= 0 || separator == endpoint.Length - 1 || !int.TryParse(endpoint[(separator + 1)..], out port))
         {
-            throw new ArgumentException("Parallel limit must be a number from 1 to 16.");
+            return false;
         }
-        return value;
-    }
-
-    private void AppendLog(string message)
-    {
-        LogBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
-        LogBox.ScrollToEnd();
+        host = endpoint[..separator];
+        return true;
     }
 }

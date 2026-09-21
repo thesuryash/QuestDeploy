@@ -10,7 +10,8 @@ namespace QuestDeploy.Services;
 public sealed partial class AdbService
 {
     private static readonly TimeSpan ShortTimeout = TimeSpan.FromSeconds(20);
-    private static readonly TimeSpan InstallTimeout = TimeSpan.FromMinutes(8);
+    private static readonly TimeSpan InstallTimeout = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan FileTransferTimeout = TimeSpan.FromHours(1);
 
     public string AdbPath { get; private set; } = "";
 
@@ -42,17 +43,24 @@ public sealed partial class AdbService
 
             var serial = parts[0];
             var state = parts[1];
+            var isWifi = TrySplitEndpoint(serial, out var host, out var port);
+            var model = ReadModelLabel(parts);
             devices.Add(new QuestDevice
             {
-                Name = ReadModelLabel(parts),
-                Serial = serial,
-                Host = TrySplitEndpoint(serial, out var host, out var port) ? host : "",
+                Name = model,
+                Model = model,
+                Host = isWifi ? host : "",
                 Port = port == 0 ? 5555 : port,
-                Transport = serial.Contains(':') ? "Wi-Fi" : "USB",
+                UsbSerial = isWifi ? "" : serial,
+                WifiSerial = isWifi ? serial : "",
                 Status = state == "device" ? "Connected" : state,
-                IsSelected = state == "device" && serial.Contains(':')
+                IsSelected = state == "device"
             });
         }
+
+        await Task.WhenAll(devices
+            .Where(device => device.Status == "Connected")
+            .Select(device => PopulateDeviceFactsAsync(device, cancellationToken)));
 
         return devices;
     }
@@ -169,11 +177,57 @@ public sealed partial class AdbService
             throw new FileNotFoundException("The file to stage was not found.", fullPath);
         }
 
-        var remotePath = $"{remoteDirectory.TrimEnd('/')}/{Path.GetFileName(fullPath)}";
-        var mkdir = await RunForDeviceAsync(serial, ["shell", "mkdir", "-p", remoteDirectory], ShortTimeout, cancellationToken);
-        EnsureSuccess(mkdir, $"Create {remoteDirectory}");
-        var push = await RunForDeviceAsync(serial, ["push", fullPath, remotePath], InstallTimeout, cancellationToken);
-        EnsureSuccess(push, $"Stage {Path.GetFileName(fullPath)}");
+        remoteDirectory = ValidateRemoteDirectory(remoteDirectory);
+        await EnsureRemoteDirectoryAsync(serial, remoteDirectory, cancellationToken);
+        var remotePath = CombineRemotePath(remoteDirectory, Path.GetFileName(fullPath));
+        await PushAndVerifyFileAsync(serial, fullPath, remotePath, cancellationToken);
+    }
+
+    public async Task<int> StagePathAsync(
+        string serial,
+        string localPath,
+        string remoteDirectory,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken)
+    {
+        RequireSerial(serial);
+        ArgumentException.ThrowIfNullOrWhiteSpace(localPath);
+        var fullPath = Path.GetFullPath(localPath);
+        remoteDirectory = ValidateRemoteDirectory(remoteDirectory);
+        await EnsureRemoteDirectoryAsync(serial, remoteDirectory, cancellationToken);
+
+        if (File.Exists(fullPath))
+        {
+            progress?.Report(Path.GetFileName(fullPath));
+            await PushAndVerifyFileAsync(
+                serial,
+                fullPath,
+                CombineRemotePath(remoteDirectory, Path.GetFileName(fullPath)),
+                cancellationToken);
+            return 1;
+        }
+
+        if (!Directory.Exists(fullPath))
+        {
+            throw new FileNotFoundException("The selected file or folder was not found.", fullPath);
+        }
+
+        var directoryName = new DirectoryInfo(fullPath).Name;
+        var remoteRoot = CombineRemotePath(remoteDirectory, directoryName);
+        await EnsureRemoteDirectoryAsync(serial, remoteRoot, cancellationToken);
+        var files = Directory.EnumerateFiles(fullPath, "*", SearchOption.AllDirectories).ToList();
+        foreach (var file in files)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var relativePath = Path.GetRelativePath(fullPath, file).Replace('\\', '/');
+            var remotePath = CombineRemotePath(remoteRoot, relativePath);
+            var remoteParent = remotePath[..remotePath.LastIndexOf('/')];
+            await EnsureRemoteDirectoryAsync(serial, remoteParent, cancellationToken);
+            progress?.Report($"{directoryName}/{relativePath}");
+            await PushAndVerifyFileAsync(serial, file, remotePath, cancellationToken);
+        }
+
+        return files.Count;
     }
 
     public async Task OpenWifiSettingsAsync(string serial, CancellationToken cancellationToken)
@@ -226,6 +280,118 @@ public sealed partial class AdbService
 
         throw new InvalidOperationException("The headset did not expose a stable serial identity.");
     }
+
+    private async Task PopulateDeviceFactsAsync(QuestDevice device, CancellationToken cancellationToken)
+    {
+        var serial = device.PreferredSerial;
+        try
+        {
+            device.Identity = await ReadDeviceIdentityAsync(serial, cancellationToken);
+        }
+        catch
+        {
+            device.Identity = serial;
+        }
+
+        try
+        {
+            var model = await RunForDeviceAsync(serial, ["shell", "getprop", "ro.product.model"], ShortTimeout, cancellationToken);
+            if (model.ExitCode == 0 && !string.IsNullOrWhiteSpace(model.StandardOutput))
+            {
+                device.Model = model.StandardOutput.Trim().Replace('_', ' ');
+                device.Name = device.Model;
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            var link = await RunForDeviceAsync(serial, ["shell", "ip", "link", "show", "wlan0"], ShortTimeout, cancellationToken);
+            var match = Regex.Match(link.StandardOutput, @"\blink/ether\s+(?<mac>[0-9a-f]{2}(?::[0-9a-f]{2}){5})\b", RegexOptions.IgnoreCase);
+            if (match.Success && !match.Groups["mac"].Value.Equals("02:00:00:00:00:00", StringComparison.OrdinalIgnoreCase))
+            {
+                device.MacAddress = match.Groups["mac"].Value;
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            var battery = await RunForDeviceAsync(serial, ["shell", "dumpsys", "battery"], ShortTimeout, cancellationToken);
+            var match = Regex.Match(battery.StandardOutput, @"(?m)^\s*level:\s*(?<level>\d{1,3})\s*$");
+            if (match.Success && int.TryParse(match.Groups["level"].Value, out var level))
+            {
+                device.BatteryPercent = Math.Clamp(level, 0, 100);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task EnsureRemoteDirectoryAsync(string serial, string remoteDirectory, CancellationToken cancellationToken)
+    {
+        var mkdir = await RunForDeviceAsync(serial, ["shell", "mkdir", "-p", remoteDirectory], ShortTimeout, cancellationToken);
+        EnsureSuccess(mkdir, $"Create {remoteDirectory}");
+    }
+
+    private async Task PushAndVerifyFileAsync(
+        string serial,
+        string localPath,
+        string remotePath,
+        CancellationToken cancellationToken)
+    {
+        var push = await RunForDeviceAsync(serial, ["push", localPath, remotePath], FileTransferTimeout, cancellationToken);
+        EnsureSuccess(push, $"Copy {Path.GetFileName(localPath)}");
+
+        var stat = await RunForDeviceAsync(serial, ["shell", "stat", "-c", "%s", remotePath], ShortTimeout, cancellationToken);
+        if (stat.ExitCode == 0 && long.TryParse(stat.StandardOutput.Trim(), out var remoteSize))
+        {
+            var localSize = new FileInfo(localPath).Length;
+            if (localSize != remoteSize)
+            {
+                throw new InvalidOperationException($"File verification failed for {Path.GetFileName(localPath)}. Expected {localSize} bytes, found {remoteSize} bytes.");
+            }
+        }
+
+        await NotifyMediaScannerAsync(serial, remotePath, cancellationToken);
+    }
+
+    private async Task NotifyMediaScannerAsync(string serial, string remotePath, CancellationToken cancellationToken)
+    {
+        if (!IsMediaFile(remotePath))
+        {
+            return;
+        }
+
+        var mediaUri = new UriBuilder
+        {
+            Scheme = Uri.UriSchemeFile,
+            Host = "",
+            Path = remotePath
+        }.Uri.AbsoluteUri;
+        var scan = await RunForDeviceAsync(
+            serial,
+            ["shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", mediaUri],
+            ShortTimeout,
+            cancellationToken);
+
+        // The transfer is still valid when a particular Quest OS build declines media indexing.
+        if (scan.ExitCode != 0)
+        {
+            return;
+        }
+    }
+
+    private static bool IsMediaFile(string path) =>
+        Path.GetExtension(path).ToLowerInvariant() is
+            ".mp4" or ".m4v" or ".mkv" or ".mov" or ".webm" or ".avi" or
+            ".mp3" or ".m4a" or ".aac" or ".wav" or ".ogg" or ".flac" or
+            ".jpg" or ".jpeg" or ".png" or ".webp" or ".gif";
 
     private Task<CommandResult> RunForDeviceAsync(
         string serial,
@@ -297,6 +463,8 @@ public sealed partial class AdbService
             candidates.Add(explicitPath);
         }
 
+        candidates.Add(Path.Combine(AppContext.BaseDirectory, "platform-tools", "adb.exe"));
+        candidates.Add(Path.Combine(AppContext.BaseDirectory, "adb.exe"));
         candidates.Add(Environment.GetEnvironmentVariable("QUEST_DEPLOY_ADB"));
         candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Android", "Sdk", "platform-tools", "adb.exe"));
         candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Android", "platform-tools", "adb.exe"));
@@ -324,6 +492,23 @@ public sealed partial class AdbService
         }
         return fullPath;
     }
+
+    private static string ValidateRemoteDirectory(string remoteDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(remoteDirectory);
+        var normalized = remoteDirectory.Trim().Replace('\\', '/').TrimEnd('/');
+        if (!normalized.StartsWith("/sdcard/", StringComparison.Ordinal) ||
+            normalized.Split('/', StringSplitOptions.RemoveEmptyEntries).Any(segment => segment is "." or "..") ||
+            normalized.Any(char.IsControl))
+        {
+            throw new ArgumentException("The headset destination must be a folder below /sdcard/ and cannot contain relative path segments.");
+        }
+
+        return normalized;
+    }
+
+    private static string CombineRemotePath(string directory, string name) =>
+        $"{directory.TrimEnd('/')}/{name.Replace('\\', '/').TrimStart('/')}";
 
     private static string ParseWifiAddress(string routeOutput)
     {
