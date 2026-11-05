@@ -309,7 +309,7 @@ public partial class MainWindow : Window
 
     private async void OnCastDevice(object sender, RoutedEventArgs e)
     {
-        if ((sender as Button)?.CommandParameter is not QuestDevice { HasUsb: true } device)
+        if ((sender as Button)?.CommandParameter is not QuestDevice { CanCast: true } device)
         {
             return;
         }
@@ -322,17 +322,19 @@ public partial class MainWindow : Window
 
         try
         {
-            DisplaySize? displaySize = options.SelectedMode is CastViewMode.BothEyes
+            var settings = options.Settings;
+            var serial = options.SelectedSerial;
+            DisplaySize? displaySize = settings.ViewMode is CastViewMode.BothEyes
                 ? null
-                : await _adb.GetDisplaySizeAsync(device.UsbSerial, CancellationToken.None);
-            _scrcpy.StartUsbCast(device, options.SelectedMode, displaySize);
-            var view = options.SelectedMode switch
+                : await _adb.GetDisplaySizeAsync(serial, CancellationToken.None);
+            _scrcpy.StartCast(device, serial, settings, displaySize);
+            var view = settings.ViewMode switch
             {
                 CastViewMode.RightEye => "right eye",
                 CastViewMode.BothEyes => "both eyes",
                 _ => "left eye"
             };
-            SetFooter($"Opened a read-only {view} cast for {device.Name}.");
+            SetFooter($"Opened a read-only {view} cast for {device.Name} via {options.SelectedTransportLabel}.");
         }
         catch (Exception exception)
         {

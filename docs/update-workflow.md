@@ -27,8 +27,8 @@ The updater never silently installs software, never runs an installer with a has
 3. Create and push a matching tag:
 
 ```powershell
-git tag v0.9.0
-git push origin v0.9.0
+git tag v0.10.0
+git push origin v0.10.0
 ```
 
 The `Build and publish Windows release` GitHub Actions workflow then:

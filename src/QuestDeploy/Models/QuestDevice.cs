@@ -145,6 +145,7 @@ public sealed class QuestDevice : INotifyPropertyChanged
         !Status.Equals("unauthorized", StringComparison.OrdinalIgnoreCase) &&
         !Status.Equals("offline", StringComparison.OrdinalIgnoreCase);
     public bool CanUseUsbTools => HasUsb && IsConnected;
+    public bool CanCast => IsConnected && (HasUsb || HasWifi);
     public bool CanEnableWifi => CanUseUsbTools && !HasWifi;
     public bool CanForgetWifi => HasKnownWifi;
     public string PreferredSerial => HasUsb ? UsbSerial : WifiSerial;
@@ -189,6 +190,7 @@ public sealed class QuestDevice : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasKnownWifi));
         OnPropertyChanged(nameof(IsConnected));
         OnPropertyChanged(nameof(CanUseUsbTools));
+        OnPropertyChanged(nameof(CanCast));
         OnPropertyChanged(nameof(CanEnableWifi));
         OnPropertyChanged(nameof(CanForgetWifi));
         OnPropertyChanged(nameof(PreferredSerial));

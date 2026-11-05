@@ -4,7 +4,7 @@ Quest Classroom Deploy is a simplified Windows utility for preparing and updatin
 
 ## Current Version
 
-Version 0.9.0 adds the Phase 2 headset-management and support tools:
+Version 0.10.0 adds the Phase 2 headset-management, support, and presentation tools:
 
 - One-screen headset and deployment workflow.
 - Automatic USB and remembered Wi-Fi headset discovery.
@@ -23,7 +23,11 @@ Version 0.9.0 adds the Phase 2 headset-management and support tools:
 - Parallel deployment to as many as four selected headsets.
 - Install-error diagnosis with error-specific causes, recovery steps, and raw ADB output.
 - Installed third-party and system-app inventory for physically connected headsets.
-- Read-only USB screen casting through the bundled, verified scrcpy distribution, with Left eye, Right eye, and Both eyes views.
+- Branded read-only USB or Wi-Fi ADB screen casting through the bundled, verified scrcpy distribution, with Left eye, Right eye, and Both eyes views.
+- Centered 16:9 one-eye presentation, 1280×720 windowed casting, fullscreen casting, and an optional always-on-top mode.
+- Optional Quest 3 eye-panel leveling applies the matching ±22° correction and a safe centered crop; it is enabled by default when a Quest 3 is detected.
+- Both-eyes mode intentionally shows the raw stereo framebuffer. A seamless wide panorama would require a dedicated real-time compositor to correct each eye independently and manage stereo parallax; scrcpy cannot perform that merge by itself.
+- A shared QuestDeploy logo for the application, installer, taskbar, dialogs, and casting window.
 - File menu actions for restarting or exiting the application.
 - About dialog with authorship, operational notes, MIT licensing, Android Platform Tools attribution, and source links.
 - Manual **Check for updates** action backed by GitHub Releases.
@@ -72,9 +76,9 @@ Build from PowerShell:
 Outputs:
 
 ```text
-artifacts/QuestDeploy-v0.9.0/
-artifacts/QuestDeploy-v0.9.0-release.zip
-artifacts/QuestDeploy-v0.9.0-Setup.exe
+artifacts/QuestDeploy-v0.10.0/
+artifacts/QuestDeploy-v0.10.0-release.zip
+artifacts/QuestDeploy-v0.10.0-Setup.exe
 ```
 
 The installer places the application under `%LOCALAPPDATA%\QuestDeploy` for the current Windows user.
@@ -103,8 +107,8 @@ At runtime, ADB is located in this order:
 Push a semantic version tag after the desired source is on `main`:
 
 ```powershell
-git tag v0.9.0
-git push origin v0.9.0
+git tag v0.10.0
+git push origin v0.10.0
 ```
 
 The GitHub Actions release workflow builds the Windows installer and publishes it with `QuestDeploy-update.json`. Installed copies check that latest-release manifest only when the user presses **About > Check for updates**. See `docs/update-workflow.md` for the complete flow and security checks.

@@ -9,7 +9,7 @@ Phase 2 remains organized around a professor's repeated classroom workflow:
 
 The primary window contains two working surfaces:
 
-- A headset list with All/Wi-Fi/Wired filters, editable names, connection state, current-network Wi-Fi MAC, model, battery, IP address, identify sound, Wi-Fi setup/removal, USB app inventory, and USB casting.
+- A headset list with All/Wi-Fi/Wired filters, editable names, connection state, current-network Wi-Fi MAC, model, battery, IP address, identify sound, Wi-Fi setup/removal, USB app inventory, and USB/Wi-Fi casting.
 - A deployment panel for an optional APK, files/folders, destination directory, launch option, overall progress, and per-device results.
 
 Technical controls such as manual endpoints, hotspot neighbor candidates, parallelism, certificate staging, and Wi-Fi command details are not exposed in Professor Mode.
@@ -36,5 +36,8 @@ Technical controls such as manual endpoints, hotspot neighbor candidates, parall
 
 - Installed-app inventory uses Android's package manager and is limited to a physically connected headset.
 - Third-party apps are the default view; system packages can be included explicitly.
-- Casting invokes the official scrcpy executable with the selected USB serial and read-only control disabled. Left eye is the default; left/right modes crop the live headset width in half, while Both eyes streams the complete frame.
+- Casting invokes the official scrcpy executable with the selected USB or Wi-Fi serial and read-only control disabled. USB is selected first when both transports are connected; the cast dialog lets the user explicitly switch to Wi-Fi. Left eye is the default; left/right modes use a centered 16:9 crop from the selected eye, while Both eyes streams the complete frame.
+- Cast presentation can start in a normalized 1280×720 window or native fullscreen, with an optional always-on-top setting. The casting window receives the same QuestDeploy icon as the main app through scrcpy's supported icon-directory override.
+- Quest 3's left and right eye panels are physically canted in opposite directions. Single-eye casting therefore defaults to a model-aware ±22° client-side correction and a centered 1792/2064-width safe crop; users can disable it for an unmodified framebuffer view. Both-eye casting remains unrotated because one transform cannot correct both opposing panel angles.
+- A future merged-wide mode requires a custom compositor that decodes the full frame, rotates and lens-corrects each eye independently, aligns their overlap, and feathers the seam. It must also expose a parallax policy because nearby objects appear at different positions in the two eye views. The current UI labels the scrcpy fallback as `Both eyes (raw)` rather than presenting it as a false seamless merge.
 - Deployment failures are classified from Android package-manager and ADB diagnostics, while the original output remains visible for support.

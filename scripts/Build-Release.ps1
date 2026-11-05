@@ -1,6 +1,6 @@
 param(
     [string]$Configuration = 'Release',
-    [string]$Version = '0.9.0',
+    [string]$Version = '0.10.0',
     [string]$AdbDirectory = (Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools'),
     [string]$ScrcpyDirectory = $env:QUEST_DEPLOY_SCRCPY_DIRECTORY
 )
@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') {
-    throw 'Version must use MAJOR.MINOR.PATCH format, for example 0.9.1.'
+    throw 'Version must use MAJOR.MINOR.PATCH format, for example 0.10.1.'
 }
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -74,6 +74,12 @@ if (-not [string]::IsNullOrWhiteSpace($ScrcpyDirectory)) {
 }
 else {
     Write-Warning 'scrcpy was not supplied. The app will build, but Cast screen will require QUEST_DEPLOY_SCRCPY or a separate scrcpy installation.'
+}
+
+$brandingOutput = Join-Path $appOutput 'branding'
+$castIcon = Join-Path $brandingOutput 'scrcpy.png'
+if (Test-Path -LiteralPath $castIcon) {
+    Copy-Item -LiteralPath $castIcon -Destination (Join-Path $brandingOutput 'disconnected.png') -Force
 }
 
 if (Test-Path $appZip) {

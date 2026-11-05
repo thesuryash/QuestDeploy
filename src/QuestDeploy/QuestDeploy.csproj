@@ -5,11 +5,17 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.9.0</Version>
+    <Version>0.10.0</Version>
     <AssemblyName>QuestDeploy</AssemblyName>
+    <ApplicationIcon>Resources\QuestDeploy.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="..\..\LICENSE" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="Resources\QuestDeploy.ico" />
+    <None Remove="Resources\QuestDeploy.png" />
+    <Resource Include="Resources\QuestDeploy.ico" />
+    <Content Include="Resources\QuestDeploy.png" Link="branding\scrcpy.png"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

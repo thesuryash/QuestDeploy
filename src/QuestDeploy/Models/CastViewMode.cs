@@ -7,4 +7,10 @@ public enum CastViewMode
     BothEyes
 }
 
+public sealed record CastSettings(
+    CastViewMode ViewMode,
+    bool Fullscreen,
+    bool AlwaysOnTop,
+    bool CorrectLensTilt);
+
 public readonly record struct DisplaySize(int Width, int Height);

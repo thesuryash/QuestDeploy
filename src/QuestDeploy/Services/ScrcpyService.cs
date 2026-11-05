@@ -6,11 +6,14 @@ namespace QuestDeploy.Services;
 
 public sealed class ScrcpyService
 {
-    public void StartUsbCast(QuestDevice device, CastViewMode viewMode, DisplaySize? displaySize)
+    private const double CorrectedEyeWidthRatio = 1792d / 2064d;
+    private const int QuestPanelAngle = 22;
+
+    public void StartCast(QuestDevice device, string serial, CastSettings settings, DisplaySize? displaySize)
     {
-        if (!device.HasUsb)
+        if (string.IsNullOrWhiteSpace(serial) || !device.IsConnected)
         {
-            throw new InvalidOperationException("Connect this headset by USB before starting screen casting.");
+            throw new InvalidOperationException("Connect this headset by USB or remembered Wi-Fi before starting screen casting.");
         }
 
         var scrcpyPath = LocateScrcpy() ?? throw new FileNotFoundException(
@@ -23,22 +26,54 @@ public sealed class ScrcpyService
             CreateNoWindow = true
         };
         startInfo.ArgumentList.Add("--serial");
-        startInfo.ArgumentList.Add(device.UsbSerial);
+        startInfo.ArgumentList.Add(serial);
         startInfo.ArgumentList.Add("--window-title");
-        startInfo.ArgumentList.Add($"QuestDeploy - {device.Name} - {ViewLabel(viewMode)}");
+        startInfo.ArgumentList.Add($"QuestDeploy - {device.Name} - {ViewLabel(settings.ViewMode)}");
         startInfo.ArgumentList.Add("--no-control");
         startInfo.ArgumentList.Add("--max-size=1920");
-        if (viewMode is not CastViewMode.BothEyes)
+        startInfo.ArgumentList.Add("--max-fps=60");
+        startInfo.ArgumentList.Add("--video-bit-rate=16M");
+        startInfo.ArgumentList.Add("--capture-orientation=@");
+        if (settings.ViewMode is not CastViewMode.BothEyes)
         {
             if (displaySize is not { } size)
             {
                 throw new InvalidOperationException("A headset display size is required for one-eye casting.");
             }
 
-            var cropWidth = MakeEven(size.Width / 2);
-            var cropHeight = MakeEven(size.Height);
-            var x = viewMode is CastViewMode.RightEye ? MakeEven(size.Width - cropWidth) : 0;
-            startInfo.ArgumentList.Add($"--crop={cropWidth}:{cropHeight}:{x}:0");
+            var eyeWidth = MakeEven(size.Width / 2);
+            var cropWidth = settings.CorrectLensTilt
+                ? MakeEven((int)Math.Floor(eyeWidth * CorrectedEyeWidthRatio))
+                : eyeWidth;
+            var cropHeight = MakeEven(Math.Min(size.Height, cropWidth * 9 / 16));
+            var eyeStart = settings.ViewMode is CastViewMode.RightEye ? eyeWidth : 0;
+            var x = MakeEven(eyeStart + (eyeWidth - cropWidth) / 2);
+            var y = MakeEven((size.Height - cropHeight) / 2);
+            startInfo.ArgumentList.Add($"--crop={cropWidth}:{cropHeight}:{x}:{y}");
+            if (settings.CorrectLensTilt)
+            {
+                var angle = settings.ViewMode is CastViewMode.RightEye ? -QuestPanelAngle : QuestPanelAngle;
+                startInfo.ArgumentList.Add($"--angle={angle}");
+            }
+        }
+        if (settings.Fullscreen)
+        {
+            startInfo.ArgumentList.Add("--fullscreen");
+        }
+        else
+        {
+            startInfo.ArgumentList.Add("--window-width=1280");
+            startInfo.ArgumentList.Add("--window-height=720");
+        }
+        if (settings.AlwaysOnTop)
+        {
+            startInfo.ArgumentList.Add("--always-on-top");
+        }
+
+        var iconDirectory = Path.Combine(AppContext.BaseDirectory, "branding");
+        if (File.Exists(Path.Combine(iconDirectory, "scrcpy.png")))
+        {
+            startInfo.Environment["SCRCPY_ICON_DIR"] = iconDirectory;
         }
 
         if (Process.Start(startInfo) is null)

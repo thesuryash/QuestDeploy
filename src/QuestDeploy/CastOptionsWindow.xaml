@@ -1,7 +1,8 @@
 <Window x:Class="QuestDeploy.CastOptionsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Cast headset" Height="330" Width="520" ResizeMode="NoResize"
+        Title="Cast headset" Height="590" Width="520" ResizeMode="NoResize"
+        Icon="Resources/QuestDeploy.ico"
         WindowStartupLocation="CenterOwner" Background="#F1F4F6"
         FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13" UseLayoutRounding="True">
     <Window.Resources>
@@ -51,6 +52,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -59,10 +61,16 @@
             <StackPanel>
                 <TextBlock Text="Choose cast view" FontSize="19" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
                 <TextBlock x:Name="DeviceText" Margin="0,3,0,0" Foreground="{StaticResource Muted}" />
+                <DockPanel Margin="0,13,0,0" LastChildFill="True">
+                    <TextBlock Text="Connection" Width="78" VerticalAlignment="Center" FontWeight="SemiBold"
+                               Foreground="{StaticResource Ink}" />
+                    <ComboBox x:Name="ConnectionBox" MinHeight="34" DisplayMemberPath="Label"
+                              ToolTip="USB is fastest. Wi-Fi is available after Set up Wi-Fi succeeds." />
+                </DockPanel>
             </StackPanel>
         </Border>
 
-        <UniformGrid Grid.Row="1" Columns="3" Margin="22,22,12,22">
+        <UniformGrid Grid.Row="1" Columns="3" Margin="22,22,12,18">
             <RadioButton x:Name="LeftEyeOption" GroupName="CastView" IsChecked="True" Style="{StaticResource ViewOption}">
                 <StackPanel>
                     <Grid Height="54" Margin="0,0,0,9">
@@ -97,12 +105,30 @@
                             <Border Grid.Column="2" CornerRadius="9" Background="{StaticResource Accent}" />
                         </Grid>
                     </Grid>
-                    <TextBlock Text="Both eyes" HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                    <TextBlock Text="Both eyes (raw)" HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
                 </StackPanel>
             </RadioButton>
         </UniformGrid>
 
-        <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="22,14">
+        <Border Grid.Row="2" Margin="22,0,22,20" Padding="16,14" Background="White"
+                BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8">
+            <StackPanel>
+                <TextBlock Text="Presentation" FontWeight="SemiBold" Foreground="{StaticResource Ink}" Margin="0,0,0,10" />
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton x:Name="WindowedOption" GroupName="Presentation" Content="Windowed 1280 × 720"
+                                 IsChecked="True" Style="{StaticResource ViewOption}" />
+                    <RadioButton x:Name="FullscreenOption" GroupName="Presentation" Content="Full screen"
+                                 Style="{StaticResource ViewOption}" Margin="0" />
+                </StackPanel>
+                <CheckBox x:Name="AlwaysOnTopBox" Content="Keep cast above other windows" Margin="2,12,0,0"
+                          Foreground="{StaticResource Muted}" />
+                <CheckBox x:Name="CorrectLensTiltBox" Content="Level the angled eye view (recommended for Quest 3)"
+                          Margin="2,10,0,0" Foreground="{StaticResource Muted}"
+                          ToolTip="Corrects the fixed Quest 3 panel tilt for Left eye or Right eye casting. Both eyes stays unchanged." />
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="3" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="22,14">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="Cancel" IsCancel="True" />
                 <Button Content="Start casting" IsDefault="True" Style="{StaticResource PrimaryButton}" Click="OnStartCasting" />

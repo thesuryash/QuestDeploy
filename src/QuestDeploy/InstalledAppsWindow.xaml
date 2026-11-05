@@ -1,6 +1,7 @@
 <Window x:Class="QuestDeploy.InstalledAppsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="Resources/QuestDeploy.ico"
         Title="Installed apps" Height="650" Width="920" MinHeight="480" MinWidth="720"
         WindowStartupLocation="CenterOwner" Background="#F1F4F6"
         FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13" UseLayoutRounding="True">
