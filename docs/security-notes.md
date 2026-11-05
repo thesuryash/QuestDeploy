@@ -9,7 +9,8 @@ Quest Classroom Deploy keeps its local trust surface narrow:
 - No administrator elevation requirement.
 - ADB commands use `ProcessStartInfo.ArgumentList` with `UseShellExecute=false`.
 - Remote destinations are limited to absolute folders below `/sdcard/` and reject relative path segments.
-- The installer rejects archive entries that resolve outside `%LOCALAPPDATA%\QuestDeploy`.
+- The installer stages program files under `%LOCALAPPDATA%\Programs`, rejects archive entries that escape the staging directory, then swaps the completed payload into `%LOCALAPPDATA%\Programs\QuestDeploy`.
+- Remembered-device data remains under `%LOCALAPPDATA%\QuestDeploy` and is not replaced during application updates.
 - The installer includes the official Android Platform Tools ADB executable, its required Windows libraries, and `NOTICE.txt`.
 - Release builds download scrcpy only from `Genymobile/scrcpy`, verify the pinned SHA-256, and retain its Apache-2.0 license.
 - Casting is started with an explicit USB serial and `--no-control`, so QuestDeploy does not forward keyboard or mouse input to the headset.

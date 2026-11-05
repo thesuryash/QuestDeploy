@@ -14,7 +14,7 @@ public partial class AboutWindow : Window
     {
         InitializeComponent();
         var version = Assembly.GetExecutingAssembly().GetName().Version;
-        VersionText.Text = version is null ? "Version 0.10.0" : $"Version {version.Major}.{version.Minor}.{version.Build}";
+        VersionText.Text = version is null ? "Version 0.10.1" : $"Version {version.Major}.{version.Minor}.{version.Build}";
     }
 
     private async void OnCheckForUpdates(object sender, RoutedEventArgs e)
@@ -49,12 +49,18 @@ public partial class AboutWindow : Window
             var progress = new Progress<string>(message => UpdateStatusText.Text = message);
             var installerPath = await _updateService.DownloadInstallerAsync(update, progress, CancellationToken.None);
             UpdateStatusText.Text = "Starting the verified installer...";
-            Process.Start(new ProcessStartInfo
+            var installerProcess = Process.Start(new ProcessStartInfo
             {
                 FileName = installerPath,
+                Arguments = $"--wait-for-pid={Environment.ProcessId}",
                 UseShellExecute = true
             });
+            if (installerProcess is null)
+            {
+                throw new InvalidOperationException("The verified installer could not be started.");
+            }
             Application.Current.Shutdown();
+            return;
         }
         catch (Exception exception)
         {

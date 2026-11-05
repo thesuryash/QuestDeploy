@@ -16,9 +16,12 @@ When the manifest reports a newer semantic version, the application:
 2. Asks the user before downloading anything.
 3. Downloads the installer to the current user's temporary directory.
 4. Calculates SHA-256 and compares it with the manifest.
-5. Starts the installer visibly and exits the current application.
+5. Starts the installer visibly with the current process ID and exits the application.
+6. Setup waits for that process to end before transactionally replacing the installed application.
 
 The updater never silently installs software, never runs an installer with a hash mismatch, and does not require an update service running in the background.
+
+Normal installation and updates place replaceable program files in `%LOCALAPPDATA%\Programs\QuestDeploy`. Start Menu and Desktop shortcuts point directly to the installed executable. Remembered headset data stays separately in `%LOCALAPPDATA%\QuestDeploy`.
 
 ## Publishing A Release
 
@@ -27,8 +30,8 @@ The updater never silently installs software, never runs an installer with a has
 3. Create and push a matching tag:
 
 ```powershell
-git tag v0.10.0
-git push origin v0.10.0
+git tag v0.10.1
+git push origin v0.10.1
 ```
 
 The `Build and publish Windows release` GitHub Actions workflow then:
