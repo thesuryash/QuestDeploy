@@ -58,7 +58,7 @@
                 </Border>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="Quest Classroom Deploy" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
-                    <TextBlock x:Name="VersionText" Text="Version 0.10.3" Foreground="{StaticResource Muted}" Margin="0,3,0,0" />
+                    <TextBlock x:Name="VersionText" Text="Version 0.10.4" Foreground="{StaticResource Muted}" Margin="0,3,0,0" />
                     <TextBlock x:Name="UpdateStatusText" Text="Updates are checked manually from GitHub Releases."
                                Foreground="{StaticResource Accent}" FontSize="12" Margin="0,3,0,0" />
                 </StackPanel>

@@ -52,11 +52,12 @@ public sealed partial class UpdateService
         CancellationToken cancellationToken)
     {
         progress?.Report("Downloading the installer...");
-        var updateDirectory = Path.Combine(
+        var versionDirectory = Path.Combine(
             Path.GetTempPath(),
             "QuestDeploy",
             "Updates",
             update.Version.ToString(3));
+        var updateDirectory = Path.Combine(versionDirectory, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(updateDirectory);
 
         var installerPath = Path.Combine(updateDirectory, $"QuestDeploy-v{update.Version.ToString(3)}-Setup.exe");
@@ -82,15 +83,29 @@ public sealed partial class UpdateService
         }
 
         progress?.Report("Verifying the installer...");
-        await using var installerStream = File.OpenRead(partialPath);
-        var actualHash = Convert.ToHexString(await SHA256.HashDataAsync(installerStream, cancellationToken));
+        string actualHash;
+        await using (var installerStream = new FileStream(
+            partialPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            1024 * 128,
+            FileOptions.Asynchronous | FileOptions.SequentialScan))
+        {
+            actualHash = Convert.ToHexString(await SHA256.HashDataAsync(installerStream, cancellationToken));
+        }
+
         if (!actualHash.Equals(update.Sha256, StringComparison.OrdinalIgnoreCase))
         {
             File.Delete(partialPath);
             throw new InvalidOperationException("The downloaded installer did not match the published release hash.");
         }
 
-        File.Move(partialPath, installerPath, overwrite: true);
+        // Close the verification stream before the atomic rename. Windows will not
+        // rename an open file that was not shared for deletion.
+        // A unique attempt directory also prevents a still-running prior installer
+        // from locking the destination used by a new update attempt.
+        File.Move(partialPath, installerPath);
         return installerPath;
     }
 

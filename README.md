@@ -4,7 +4,7 @@ Quest Classroom Deploy is a simplified Windows utility for preparing and updatin
 
 ## Current Version
 
-Version 0.10.3 includes the Phase 2 headset-management, support, and presentation tools, plus a proper per-user installation, reliable in-app updates, and automatic connection refresh:
+Version 0.10.4 includes the Phase 2 headset-management, support, and presentation tools, plus a proper per-user installation, reliable in-app updates, and automatic connection refresh:
 
 - One-screen headset and deployment workflow.
 - Automatic USB and remembered Wi-Fi headset discovery.
@@ -31,6 +31,7 @@ Version 0.10.3 includes the Phase 2 headset-management, support, and presentatio
 - File menu actions for restarting or exiting the application.
 - About dialog with authorship, operational notes, MIT licensing, Android Platform Tools attribution, and source links.
 - Manual **Check for updates** action backed by GitHub Releases.
+- Collision-free update staging with verification handles closed before installer launch.
 - Transactional installation to `%LOCALAPPDATA%\Programs\QuestDeploy`, with Start Menu and Desktop shortcuts.
 - In-app updates wait for the running QuestDeploy process to exit before replacing installed files.
 - SHA-256 verification before any downloaded installer is launched.
@@ -78,9 +79,9 @@ Build from PowerShell:
 Outputs:
 
 ```text
-artifacts/QuestDeploy-v0.10.3/
-artifacts/QuestDeploy-v0.10.3-release.zip
-artifacts/QuestDeploy-v0.10.3-Setup.exe
+artifacts/QuestDeploy-v0.10.4/
+artifacts/QuestDeploy-v0.10.4-release.zip
+artifacts/QuestDeploy-v0.10.4-Setup.exe
 ```
 
 The installer places the application under `%LOCALAPPDATA%\Programs\QuestDeploy` for the current Windows user and creates Start Menu and Desktop shortcuts. Application data such as remembered headset details remains under `%LOCALAPPDATA%\QuestDeploy`, separate from replaceable program files.
@@ -109,8 +110,8 @@ At runtime, ADB is located in this order:
 Push a semantic version tag after the desired source is on `main`:
 
 ```powershell
-git tag v0.10.3
-git push origin v0.10.3
+git tag v0.10.4
+git push origin v0.10.4
 ```
 
 The GitHub Actions release workflow builds the Windows installer and publishes it with `QuestDeploy-update.json`. Installed copies check that latest-release manifest only when the user presses **About > Check for updates**. See `docs/update-workflow.md` for the complete flow and security checks.
