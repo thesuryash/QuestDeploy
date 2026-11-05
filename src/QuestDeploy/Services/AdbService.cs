@@ -65,6 +65,22 @@ public sealed partial class AdbService
         return devices;
     }
 
+    public async Task<string> GetDeviceTransportSnapshotAsync(CancellationToken cancellationToken)
+    {
+        EnsureAdb();
+        var result = await RunAdbAsync(["devices"], ShortTimeout, cancellationToken);
+        EnsureSuccess(result, "ADB connection monitoring");
+
+        return string.Join('\n', result.StandardOutput
+            .ReplaceLineEndings("\n")
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(line => !line.StartsWith("List of devices", StringComparison.OrdinalIgnoreCase))
+            .Select(line => line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            .Where(parts => parts.Length >= 2)
+            .Select(parts => $"{parts[0]}\t{parts[1]}")
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase));
+    }
+
     public async Task<string> EnableWifiAdbFromUsbAsync(string usbSerial, int port, CancellationToken cancellationToken)
     {
         RequireSerial(usbSerial);

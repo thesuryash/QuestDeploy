@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>QuestDeploy-Setup</AssemblyName>
-    <Version>0.10.1</Version>
+    <Version>0.10.2</Version>
     <ApplicationIcon>..\QuestDeploy\Resources\QuestDeploy.ico</ApplicationIcon>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>

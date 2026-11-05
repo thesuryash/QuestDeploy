@@ -455,7 +455,7 @@
                             </Grid>
                             <TextBlock Text="No headsets in this view" FontSize="15" FontWeight="SemiBold"
                                        Foreground="{StaticResource Ink}" HorizontalAlignment="Center" />
-                            <TextBlock Text="Connect a USB headset, then press Refresh headsets."
+                            <TextBlock Text="Connect a USB headset; it will appear automatically."
                                        Foreground="{StaticResource Muted}" Margin="0,5,0,0" />
                         </StackPanel>
                     </Grid>

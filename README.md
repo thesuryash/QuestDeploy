@@ -4,10 +4,11 @@ Quest Classroom Deploy is a simplified Windows utility for preparing and updatin
 
 ## Current Version
 
-Version 0.10.1 includes the Phase 2 headset-management, support, and presentation tools, plus a proper per-user installation and reliable in-app updates:
+Version 0.10.2 includes the Phase 2 headset-management, support, and presentation tools, plus a proper per-user installation, reliable in-app updates, and automatic connection refresh:
 
 - One-screen headset and deployment workflow.
 - Automatic USB and remembered Wi-Fi headset discovery.
+- Automatic headset-list refresh when USB or Wi-Fi ADB connections appear, disappear, or change state.
 - One physical headset is combined into one row when both USB and Wi-Fi are connected.
 - All, Wi-Fi, and Wired headset tabs backed by one shared selection state.
 - Per-headset **Forget Wi-Fi** that disconnects and removes the remembered endpoint.
@@ -48,7 +49,7 @@ It can be changed in the deployment panel. The exact folder used by a classroom 
 1. Enable Developer Mode for the Quest headset.
 2. Connect it to the Windows PC with a USB data cable.
 3. Put on the headset and accept **Always allow USB debugging from this computer**.
-4. Open Quest Classroom Deploy and press **Refresh headsets**.
+4. Open Quest Classroom Deploy and connect the headset. It appears automatically; **Refresh headsets** remains available as a manual retry.
 5. Edit the headset name if needed.
 6. Press **Set up Wi-Fi** beside the USB headset.
 7. After the row reports Wi-Fi ready, the USB cable can be removed.
@@ -78,9 +79,9 @@ Build from PowerShell:
 Outputs:
 
 ```text
-artifacts/QuestDeploy-v0.10.1/
-artifacts/QuestDeploy-v0.10.1-release.zip
-artifacts/QuestDeploy-v0.10.1-Setup.exe
+artifacts/QuestDeploy-v0.10.2/
+artifacts/QuestDeploy-v0.10.2-release.zip
+artifacts/QuestDeploy-v0.10.2-Setup.exe
 ```
 
 The installer places the application under `%LOCALAPPDATA%\Programs\QuestDeploy` for the current Windows user and creates Start Menu and Desktop shortcuts. Application data such as remembered headset details remains under `%LOCALAPPDATA%\QuestDeploy`, separate from replaceable program files.
@@ -109,8 +110,8 @@ At runtime, ADB is located in this order:
 Push a semantic version tag after the desired source is on `main`:
 
 ```powershell
-git tag v0.10.1
-git push origin v0.10.1
+git tag v0.10.2
+git push origin v0.10.2
 ```
 
 The GitHub Actions release workflow builds the Windows installer and publishes it with `QuestDeploy-update.json`. Installed copies check that latest-release manifest only when the user presses **About > Check for updates**. See `docs/update-workflow.md` for the complete flow and security checks.

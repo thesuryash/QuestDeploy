@@ -1,6 +1,6 @@
 param(
     [string]$Configuration = 'Release',
-    [string]$Version = '0.10.1',
+    [string]$Version = '0.10.2',
     [string]$AdbDirectory = (Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools'),
     [string]$ScrcpyDirectory = $env:QUEST_DEPLOY_SCRCPY_DIRECTORY
 )
@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') {
-    throw 'Version must use MAJOR.MINOR.PATCH format, for example 0.10.2.'
+    throw 'Version must use MAJOR.MINOR.PATCH format, for example 0.10.3.'
 }
 
 $root = Split-Path -Parent $PSScriptRoot

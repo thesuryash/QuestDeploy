@@ -30,8 +30,8 @@ Normal installation and updates place replaceable program files in `%LOCALAPPDAT
 3. Create and push a matching tag:
 
 ```powershell
-git tag v0.10.1
-git push origin v0.10.1
+git tag v0.10.2
+git push origin v0.10.2
 ```
 
 The `Build and publish Windows release` GitHub Actions workflow then:

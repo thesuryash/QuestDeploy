@@ -14,7 +14,7 @@ public partial class AboutWindow : Window
     {
         InitializeComponent();
         var version = Assembly.GetExecutingAssembly().GetName().Version;
-        VersionText.Text = version is null ? "Version 0.10.1" : $"Version {version.Major}.{version.Minor}.{version.Build}";
+        VersionText.Text = version is null ? "Version 0.10.2" : $"Version {version.Major}.{version.Minor}.{version.Build}";
     }
 
     private async void OnCheckForUpdates(object sender, RoutedEventArgs e)

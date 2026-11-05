@@ -10,6 +10,7 @@ Phase 2 remains organized around a professor's repeated classroom workflow:
 The primary window contains two working surfaces:
 
 - A headset list with All/Wi-Fi/Wired filters, editable names, connection state, current-network Wi-Fi MAC, model, battery, IP address, identify sound, Wi-Fi setup/removal, USB app inventory, and USB/Wi-Fi casting.
+- A lightweight ADB transport snapshot runs every two seconds. It triggers a full device refresh only when a serial or connection state changes, and defers that refresh while deployment or setup work is active.
 - A deployment panel for an optional APK, files/folders, destination directory, launch option, overall progress, and per-device results.
 
 Technical controls such as manual endpoints, hotspot neighbor candidates, parallelism, certificate staging, and Wi-Fi command details are not exposed in Professor Mode.

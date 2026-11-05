@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using QuestDeploy.Models;
 using QuestDeploy.Services;
@@ -19,8 +20,14 @@ public partial class MainWindow : Window
     private readonly AdbService _adb = new();
     private readonly DeviceStore _store = new();
     private readonly ScrcpyService _scrcpy = new();
+    private readonly DispatcherTimer _deviceWatchTimer;
+    private readonly CancellationTokenSource _windowLifetime = new();
     private bool _changingSelection;
     private bool _isBusy;
+    private bool _deviceWatchRunning;
+    private bool _deviceSnapshotInitialized;
+    private bool _autoRefreshPending;
+    private string _lastDeviceTransportSnapshot = "";
     private int _deviceFilterIndex;
 
     public ObservableCollection<QuestDevice> Devices { get; } = [];
@@ -35,7 +42,13 @@ public partial class MainWindow : Window
         DataContext = this;
         Devices.CollectionChanged += OnDevicesCollectionChanged;
         DeploymentItems.CollectionChanged += (_, _) => UpdateDeploymentSummary();
+        _deviceWatchTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromSeconds(2)
+        };
+        _deviceWatchTimer.Tick += OnDeviceWatchTick;
         Loaded += OnLoaded;
+        Closed += OnClosed;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -67,6 +80,82 @@ public partial class MainWindow : Window
 
         UpdateSummary();
         await ReconnectKnownAsync(showDialog: false);
+        await InitializeDeviceWatcherAsync();
+    }
+
+    private async Task InitializeDeviceWatcherAsync()
+    {
+        try
+        {
+            _lastDeviceTransportSnapshot = await _adb.GetDeviceTransportSnapshotAsync(_windowLifetime.Token);
+            _deviceSnapshotInitialized = true;
+        }
+        catch (OperationCanceledException) when (_windowLifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch
+        {
+            _lastDeviceTransportSnapshot = "";
+        }
+
+        _deviceWatchTimer.Start();
+    }
+
+    private async void OnDeviceWatchTick(object? sender, EventArgs e)
+    {
+        if (_deviceWatchRunning || _windowLifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        _deviceWatchRunning = true;
+        try
+        {
+            var snapshot = await _adb.GetDeviceTransportSnapshotAsync(_windowLifetime.Token);
+            if (!_deviceSnapshotInitialized)
+            {
+                _lastDeviceTransportSnapshot = snapshot;
+                _deviceSnapshotInitialized = true;
+                return;
+            }
+            if (snapshot.Equals(_lastDeviceTransportSnapshot, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _lastDeviceTransportSnapshot = snapshot;
+            _autoRefreshPending = true;
+            await RunPendingAutoRefreshAsync();
+        }
+        catch (OperationCanceledException) when (_windowLifetime.IsCancellationRequested)
+        {
+        }
+        catch
+        {
+            // ADB may be restarting while a cable changes. The next tick retries quietly.
+        }
+        finally
+        {
+            _deviceWatchRunning = false;
+        }
+    }
+
+    private async Task RunPendingAutoRefreshAsync()
+    {
+        if (!_autoRefreshPending || _isBusy || _windowLifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        _autoRefreshPending = false;
+        await RunBusyActionAsync("Headset connection changed", RefreshDevicesAsync, showFailureDialog: false);
+    }
+
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        _deviceWatchTimer.Stop();
+        _windowLifetime.Cancel();
     }
 
     private void OnRestartApplication(object sender, RoutedEventArgs e)
@@ -690,6 +779,10 @@ public partial class MainWindow : Window
             DeploymentProgress.IsIndeterminate = false;
             _isBusy = false;
             UpdateSummary();
+            if (_autoRefreshPending && !_windowLifetime.IsCancellationRequested)
+            {
+                _ = Dispatcher.InvokeAsync(RunPendingAutoRefreshAsync, DispatcherPriority.Background);
+            }
         }
     }
 
