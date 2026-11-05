@@ -292,24 +292,6 @@ public partial class MainWindow : Window
         UpdateSummary();
     }
 
-    private async void OnIdentifyDevice(object sender, RoutedEventArgs e)
-    {
-        if ((sender as Button)?.CommandParameter is not QuestDevice device || !device.IsConnected)
-        {
-            return;
-        }
-
-        await RunBusyActionAsync("Identifying headset", async token =>
-        {
-            device.Status = "Identifying";
-            device.Detail = "Playing a sound inside this headset";
-            await _adb.PlayDetectSoundAsync(device.PreferredSerial, token);
-            device.Status = "Connected";
-            device.Detail = "Identification sound sent";
-            SetFooter($"Identification sound sent to {device.Name}.");
-        });
-    }
-
     private async void OnEnableWifiForDevice(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.CommandParameter is not QuestDevice { HasUsb: true } device)

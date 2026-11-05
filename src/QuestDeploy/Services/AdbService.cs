@@ -292,22 +292,6 @@ public sealed partial class AdbService
         EnsureSuccess(result, "Open Wi-Fi settings");
     }
 
-    public async Task PlayDetectSoundAsync(string serial, CancellationToken cancellationToken)
-    {
-        RequireSerial(serial);
-        var tempPath = Path.Combine(Path.GetTempPath(), "questdeploy-detect.wav");
-        await File.WriteAllBytesAsync(tempPath, CreateBeepWav(), cancellationToken);
-        var remotePath = "/sdcard/Download/questdeploy-detect.wav";
-        var push = await RunForDeviceAsync(serial, ["push", tempPath, remotePath], ShortTimeout, cancellationToken);
-        EnsureSuccess(push, "Stage detect sound");
-        var play = await RunForDeviceAsync(
-            serial,
-            ["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", $"file://{remotePath}", "-t", "audio/wav"],
-            ShortTimeout,
-            cancellationToken);
-        EnsureSuccess(play, "Play detect sound");
-    }
-
     public async Task LaunchPackageAsync(string serial, string packageName, CancellationToken cancellationToken)
     {
         RequireSerial(serial);
@@ -699,39 +683,6 @@ public sealed partial class AdbService
         catch
         {
         }
-    }
-
-    private static byte[] CreateBeepWav()
-    {
-        const int sampleRate = 44100;
-        const double durationSeconds = 0.35;
-        const short channels = 1;
-        const short bitsPerSample = 16;
-        var sampleCount = (int)(sampleRate * durationSeconds);
-        var dataLength = sampleCount * channels * bitsPerSample / 8;
-        using var stream = new MemoryStream();
-        using var writer = new BinaryWriter(stream, Encoding.ASCII, leaveOpen: true);
-        writer.Write("RIFF"u8.ToArray());
-        writer.Write(36 + dataLength);
-        writer.Write("WAVEfmt "u8.ToArray());
-        writer.Write(16);
-        writer.Write((short)1);
-        writer.Write(channels);
-        writer.Write(sampleRate);
-        writer.Write(sampleRate * channels * bitsPerSample / 8);
-        writer.Write((short)(channels * bitsPerSample / 8));
-        writer.Write(bitsPerSample);
-        writer.Write("data"u8.ToArray());
-        writer.Write(dataLength);
-        for (var i = 0; i < sampleCount; i++)
-        {
-            var t = i / (double)sampleRate;
-            var envelope = Math.Min(1.0, i / 1200.0) * Math.Min(1.0, (sampleCount - i) / 1600.0);
-            var value = (short)(Math.Sin(2 * Math.PI * 880 * t) * short.MaxValue * 0.38 * envelope);
-            writer.Write(value);
-        }
-        writer.Flush();
-        return stream.ToArray();
     }
 
     [GeneratedRegex("^[A-Za-z0-9._:-]+$", RegexOptions.CultureInvariant)]
