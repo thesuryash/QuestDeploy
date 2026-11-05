@@ -123,7 +123,13 @@ public sealed class QuestDevice : INotifyPropertyChanged
     public string Status
     {
         get => _status;
-        set => SetField(ref _status, value ?? "");
+        set
+        {
+            if (SetField(ref _status, value ?? ""))
+            {
+                NotifyConnectionChanged();
+            }
+        }
     }
 
     public string Detail
@@ -134,8 +140,13 @@ public sealed class QuestDevice : INotifyPropertyChanged
 
     public bool HasUsb => UsbSerial.Length > 0;
     public bool HasWifi => WifiSerial.Length > 0;
-    public bool IsConnected => HasUsb || HasWifi;
-    public bool CanEnableWifi => HasUsb && !HasWifi;
+    public bool HasKnownWifi => Host.Length > 0;
+    public bool IsConnected => (HasUsb || HasWifi) &&
+        !Status.Equals("unauthorized", StringComparison.OrdinalIgnoreCase) &&
+        !Status.Equals("offline", StringComparison.OrdinalIgnoreCase);
+    public bool CanUseUsbTools => HasUsb && IsConnected;
+    public bool CanEnableWifi => CanUseUsbTools && !HasWifi;
+    public bool CanForgetWifi => HasKnownWifi;
     public string PreferredSerial => HasUsb ? UsbSerial : WifiSerial;
     public string Transport => HasUsb && HasWifi ? "USB + Wi-Fi" : HasUsb ? "USB" : HasWifi ? "Wi-Fi" : "Remembered";
     public string Endpoint => HasUsb && HasWifi ? $"USB + {Host}:{Port}" : HasUsb ? "USB cable" : Host.Length > 0 ? $"{Host}:{Port}" : "Not connected";
@@ -175,8 +186,11 @@ public sealed class QuestDevice : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(HasUsb));
         OnPropertyChanged(nameof(HasWifi));
+        OnPropertyChanged(nameof(HasKnownWifi));
         OnPropertyChanged(nameof(IsConnected));
+        OnPropertyChanged(nameof(CanUseUsbTools));
         OnPropertyChanged(nameof(CanEnableWifi));
+        OnPropertyChanged(nameof(CanForgetWifi));
         OnPropertyChanged(nameof(PreferredSerial));
         OnPropertyChanged(nameof(Transport));
         OnPropertyChanged(nameof(Endpoint));

@@ -4,11 +4,13 @@ Quest Classroom Deploy is a simplified Windows utility for preparing and updatin
 
 ## Current Version
 
-Version 0.8.0 includes Professor Mode, an in-app File/About menu, and secure manual updates:
+Version 0.9.0 adds the Phase 2 headset-management and support tools:
 
 - One-screen headset and deployment workflow.
 - Automatic USB and remembered Wi-Fi headset discovery.
 - One physical headset is combined into one row when both USB and Wi-Fi are connected.
+- All, Wi-Fi, and Wired headset tabs backed by one shared selection state.
+- Per-headset **Forget Wi-Fi** that disconnects and removes the remembered endpoint.
 - Editable classroom names such as `Lab Headset 01`.
 - Current Wi-Fi MAC address displayed prominently for network administration.
 - Battery, model, IP address, connection state, and per-headset deployment status.
@@ -19,6 +21,9 @@ Version 0.8.0 includes Professor Mode, an in-app File/About menu, and secure man
 - Automatic destination-folder creation and transferred-file size verification.
 - Automatic Android media indexing for copied video, audio, and image files.
 - Parallel deployment to as many as four selected headsets.
+- Install-error diagnosis with error-specific causes, recovery steps, and raw ADB output.
+- Installed third-party and system-app inventory for physically connected headsets.
+- Read-only USB screen casting through the bundled, verified scrcpy distribution.
 - File menu actions for restarting or exiting the application.
 - About dialog with authorship, operational notes, MIT licensing, Android Platform Tools attribution, and source links.
 - Manual **Check for updates** action backed by GitHub Releases.
@@ -56,7 +61,7 @@ The app automatically prefers a connected USB transport for speed and otherwise 
 
 ## Installer
 
-The v7 release is self-contained for 64-bit Windows and includes the required ADB files. The target computer does not need a separate .NET runtime or Android SDK installation.
+The Phase 2 release is self-contained for 64-bit Windows and includes the required ADB and scrcpy files. The target computer does not need a separate .NET runtime, Android SDK, or casting installation.
 
 Build from PowerShell:
 
@@ -67,9 +72,9 @@ Build from PowerShell:
 Outputs:
 
 ```text
-artifacts/QuestDeploy-v0.8.0/
-artifacts/QuestDeploy-v0.8.0-release.zip
-artifacts/QuestDeploy-v0.8.0-Setup.exe
+artifacts/QuestDeploy-v0.9.0/
+artifacts/QuestDeploy-v0.9.0-release.zip
+artifacts/QuestDeploy-v0.9.0-Setup.exe
 ```
 
 The installer places the application under `%LOCALAPPDATA%\QuestDeploy` for the current Windows user.
@@ -79,6 +84,7 @@ The installer places the application under `%LOCALAPPDATA%\QuestDeploy` for the 
 - Windows 10 or Windows 11
 - .NET 10 SDK
 - Android SDK Platform Tools at `%LOCALAPPDATA%\Android\Sdk\platform-tools`, or pass `-AdbDirectory` to the release script
+- Official scrcpy Windows directory passed with `-ScrcpyDirectory` to include casting in a local release
 - Meta Quest Developer Mode
 
 ## ADB Discovery
@@ -97,8 +103,8 @@ At runtime, ADB is located in this order:
 Push a semantic version tag after the desired source is on `main`:
 
 ```powershell
-git tag v0.8.1
-git push origin v0.8.1
+git tag v0.9.0
+git push origin v0.9.0
 ```
 
 The GitHub Actions release workflow builds the Windows installer and publishes it with `QuestDeploy-update.json`. Installed copies check that latest-release manifest only when the user presses **About > Check for updates**. See `docs/update-workflow.md` for the complete flow and security checks.

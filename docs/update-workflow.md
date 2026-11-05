@@ -27,8 +27,8 @@ The updater never silently installs software, never runs an installer with a has
 3. Create and push a matching tag:
 
 ```powershell
-git tag v0.8.1
-git push origin v0.8.1
+git tag v0.9.0
+git push origin v0.9.0
 ```
 
 The `Build and publish Windows release` GitHub Actions workflow then:
@@ -37,6 +37,7 @@ The `Build and publish Windows release` GitHub Actions workflow then:
 - Installs .NET 10 on a Windows runner.
 - Builds the self-contained app and installer.
 - Bundles Android Platform Tools from the runner's Android SDK.
+- Downloads the pinned official scrcpy Windows archive, verifies its published SHA-256, and bundles it with its license.
 - Generates `QuestDeploy-update.json` with the installer URL and SHA-256.
 - Creates the GitHub Release and marks it as latest.
 - Uploads the installer, portable ZIP, and update manifest.

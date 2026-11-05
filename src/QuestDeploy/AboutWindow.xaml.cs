@@ -14,7 +14,7 @@ public partial class AboutWindow : Window
     {
         InitializeComponent();
         var version = Assembly.GetExecutingAssembly().GetName().Version;
-        VersionText.Text = version is null ? "Version 0.8.0" : $"Version {version.Major}.{version.Minor}.{version.Build}";
+        VersionText.Text = version is null ? "Version 0.9.0" : $"Version {version.Major}.{version.Minor}.{version.Build}";
     }
 
     private async void OnCheckForUpdates(object sender, RoutedEventArgs e)
@@ -24,7 +24,7 @@ public partial class AboutWindow : Window
         UpdateStatusText.Text = "Contacting GitHub Releases...";
         try
         {
-            var currentVersion = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 8, 0);
+            var currentVersion = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 9, 0);
             var update = await _updateService.CheckForUpdateAsync(currentVersion, CancellationToken.None);
             if (update is null)
             {
@@ -76,6 +76,9 @@ public partial class AboutWindow : Window
 
     private void OnOpenAndroidNotices(object sender, RoutedEventArgs e) =>
         OpenTarget(Path.Combine(AppContext.BaseDirectory, "platform-tools", "NOTICE.txt"), "Android notices");
+
+    private void OnOpenScrcpyLicense(object sender, RoutedEventArgs e) =>
+        OpenTarget(Path.Combine(AppContext.BaseDirectory, "scrcpy", "LICENSE.txt"), "scrcpy license");
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 

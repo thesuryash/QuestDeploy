@@ -45,11 +45,33 @@ jobs:
           }
           & $adbPath version
 
+      - name: Download verified scrcpy
+        shell: pwsh
+        run: |
+          $version = '5.0.1'
+          $archive = Join-Path $env:RUNNER_TEMP "scrcpy-win64-v$version.zip"
+          $extractRoot = Join-Path $env:RUNNER_TEMP 'scrcpy'
+          $url = "https://github.com/Genymobile/scrcpy/releases/download/v$version/scrcpy-win64-v$version.zip"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $expectedHash = 'B12A2C4EE8BE317422451FC7DCF8EE20A71B5EA7EF9AD73DDD825A25316227A5'
+          $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
+          if ($actualHash -ne $expectedHash) {
+            throw "scrcpy archive hash mismatch. Expected $expectedHash, found $actualHash."
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath $extractRoot -Force
+          $scrcpyDirectory = Get-ChildItem -LiteralPath $extractRoot -Directory |
+            Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'scrcpy.exe') } |
+            Select-Object -First 1
+          if ($null -eq $scrcpyDirectory) {
+            throw 'The verified scrcpy archive did not contain scrcpy.exe.'
+          }
+          "SCRCPY_DIRECTORY=$($scrcpyDirectory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Build self-contained installer
         shell: pwsh
         run: |
           $adbDirectory = Join-Path $env:ANDROID_HOME 'platform-tools'
-          .\scripts\Build-Release.ps1 -Version $env:RELEASE_VERSION -AdbDirectory $adbDirectory
+          .\scripts\Build-Release.ps1 -Version $env:RELEASE_VERSION -AdbDirectory $adbDirectory -ScrcpyDirectory $env:SCRCPY_DIRECTORY
 
       - name: Create update manifest
         shell: pwsh

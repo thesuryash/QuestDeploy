@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -5,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using Microsoft.Win32;
 using QuestDeploy.Models;
@@ -16,15 +18,20 @@ public partial class MainWindow : Window
 {
     private readonly AdbService _adb = new();
     private readonly DeviceStore _store = new();
+    private readonly ScrcpyService _scrcpy = new();
     private bool _changingSelection;
     private bool _isBusy;
+    private int _deviceFilterIndex;
 
     public ObservableCollection<QuestDevice> Devices { get; } = [];
     public ObservableCollection<string> DeploymentItems { get; } = [];
+    public ICollectionView DevicesView { get; }
 
     public MainWindow()
     {
         InitializeComponent();
+        DevicesView = CollectionViewSource.GetDefaultView(Devices);
+        DevicesView.Filter = DeviceMatchesActiveFilter;
         DataContext = this;
         Devices.CollectionChanged += OnDevicesCollectionChanged;
         DeploymentItems.CollectionChanged += (_, _) => UpdateDeploymentSummary();
@@ -171,10 +178,22 @@ public partial class MainWindow : Window
         }
 
         var selected = SelectAllBox.IsChecked == true;
-        foreach (var device in Devices.Where(device => device.IsConnected))
+        foreach (var device in VisibleDevices().Where(device => device.IsConnected))
         {
             device.IsSelected = selected;
         }
+        UpdateSummary();
+    }
+
+    private void OnDeviceFilterChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || DeviceFilterTabs is null || DevicesView is null)
+        {
+            return;
+        }
+
+        _deviceFilterIndex = Math.Max(0, DeviceFilterTabs.SelectedIndex);
+        DevicesView.Refresh();
         UpdateSummary();
     }
 
@@ -227,6 +246,83 @@ public partial class MainWindow : Window
             await SaveKnownAsync();
             SetFooter($"Wi-Fi configured for {device.Name} at {endpoint}.");
         });
+    }
+
+    private async void OnForgetWifiDevice(object sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.CommandParameter is not QuestDevice { HasKnownWifi: true } device)
+        {
+            return;
+        }
+
+        var decision = MessageBox.Show(
+            this,
+            $"Forget the remembered Wi-Fi connection for {device.Name}?{Environment.NewLine}{Environment.NewLine}This removes {device.Host}:{device.Port} from QuestDeploy and disconnects Wi-Fi ADB. It does not revoke the headset's USB-debugging authorization.",
+            "Forget Wi-Fi headset",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (decision != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        await RunBusyActionAsync("Forgetting Wi-Fi headset", async token =>
+        {
+            var endpoint = $"{device.Host}:{device.Port}";
+            try
+            {
+                await _adb.DisconnectAsync(device.Host, device.Port, token);
+            }
+            catch
+            {
+                // The saved endpoint must still be removable when it is already offline.
+            }
+
+            device.WifiSerial = "";
+            device.Host = "";
+            device.Port = 5555;
+            device.Detail = "Remembered Wi-Fi connection removed";
+            if (device.HasUsb)
+            {
+                device.Status = "Connected";
+            }
+            else
+            {
+                Devices.Remove(device);
+            }
+
+            await SaveKnownAsync();
+            DevicesView.Refresh();
+            SetFooter($"Forgot Wi-Fi endpoint {endpoint} for {device.Name}.");
+        });
+    }
+
+    private void OnShowInstalledApps(object sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.CommandParameter is not QuestDevice { HasUsb: true } device)
+        {
+            return;
+        }
+
+        new InstalledAppsWindow(_adb, device) { Owner = this }.ShowDialog();
+    }
+
+    private void OnCastDevice(object sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.CommandParameter is not QuestDevice { HasUsb: true } device)
+        {
+            return;
+        }
+
+        try
+        {
+            _scrcpy.StartUsbCast(device);
+            SetFooter($"Opened a read-only cast window for {device.Name}.");
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, "Could not cast headset", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private async void OnReconnectKnown(object sender, RoutedEventArgs e) =>
@@ -290,6 +386,7 @@ public partial class MainWindow : Window
         {
             var completed = 0;
             var failed = 0;
+            var issues = new ConcurrentBag<DeploymentIssue>();
             DeploymentProgress.IsIndeterminate = false;
             DeploymentProgress.Value = 0;
             ActivityCountText.Text = $"0 of {targets.Count}";
@@ -327,9 +424,11 @@ public partial class MainWindow : Window
                 catch (Exception exception)
                 {
                     Interlocked.Increment(ref failed);
+                    var issue = InstallFailureAdvisor.Create(device.Name, exception, replace);
+                    issues.Add(issue);
                     device.Status = "Failed";
-                    device.Detail = exception.Message;
-                    SetFooter($"{device.Name} failed: {exception.Message}");
+                    device.Detail = issue.Summary;
+                    SetFooter($"{device.Name} failed: {issue.ErrorCode}");
                 }
                 finally
                 {
@@ -347,8 +446,15 @@ public partial class MainWindow : Window
             ActivityStateText.Text = failed == 0 ? "Deployment complete" : "Deployment finished with errors";
             ActivityDetailText.Text = failed == 0
                 ? $"App and files were deployed to {targets.Count} headset(s)."
-                : $"{targets.Count - failed} succeeded and {failed} failed. Check the affected headset row.";
+                : $"{targets.Count - failed} succeeded and {failed} failed. Review the recovery steps.";
             SetFooter(ActivityDetailText.Text);
+            if (!issues.IsEmpty)
+            {
+                new DeploymentIssuesWindow(issues.OrderBy(issue => issue.HeadsetName, StringComparer.OrdinalIgnoreCase))
+                {
+                    Owner = this
+                }.ShowDialog();
+            }
         });
     }
 
@@ -465,27 +571,46 @@ public partial class MainWindow : Window
     {
         if (e.PropertyName is nameof(QuestDevice.IsSelected) or nameof(QuestDevice.Status) or nameof(QuestDevice.IsConnected) or nameof(QuestDevice.HasUsb) or nameof(QuestDevice.HasWifi))
         {
+            DevicesView.Refresh();
             UpdateSummary();
         }
     }
 
     private void UpdateSummary()
     {
-        if (!IsLoaded && ReadyCountText is null)
+        if (ReadyCountText is null || DeviceSummaryText is null || EmptyState is null || SelectAllBox is null)
         {
             return;
         }
 
-        var connected = Devices.Where(device => device.IsConnected).ToList();
-        var selected = connected.Count(device => device.IsSelected);
+        var visible = VisibleDevices().ToList();
+        var connected = visible.Where(device => device.IsConnected).ToList();
+        var selected = Devices.Count(device => device is { IsConnected: true, IsSelected: true });
         ReadyCountText.Text = $"{connected.Count} ready";
-        DeviceSummaryText.Text = $"{connected.Count} connected | {selected} selected";
-        EmptyState.Visibility = Devices.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        DeviceSummaryText.Text = $"{visible.Count} in view | {selected} selected overall";
+        EmptyState.Visibility = visible.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         _changingSelection = true;
         SelectAllBox.IsChecked = connected.Count > 0 && connected.All(device => device.IsSelected);
         _changingSelection = false;
         UpdateDeploymentSummary();
+    }
+
+    private IEnumerable<QuestDevice> VisibleDevices() => Devices.Where(DeviceMatchesActiveFilter);
+
+    private bool DeviceMatchesActiveFilter(object value)
+    {
+        if (value is not QuestDevice device)
+        {
+            return false;
+        }
+
+        return _deviceFilterIndex switch
+        {
+            1 => device.HasWifi || device.HasKnownWifi,
+            2 => device.HasUsb,
+            _ => true
+        };
     }
 
     private void UpdateDeploymentSummary()

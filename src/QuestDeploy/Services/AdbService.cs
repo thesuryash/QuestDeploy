@@ -125,7 +125,29 @@ public sealed partial class AdbService
         }
         args.Add(fullPath);
         var result = await RunForDeviceAsync(serial, args, InstallTimeout, cancellationToken);
-        EnsureSuccess(result, $"Install {Path.GetFileName(fullPath)}");
+        if (result.ExitCode != 0 ||
+            result.Combined.Contains("Failure [", StringComparison.OrdinalIgnoreCase) ||
+            result.Combined.Contains("INSTALL_FAILED_", StringComparison.OrdinalIgnoreCase) ||
+            result.Combined.Contains("INSTALL_PARSE_FAILED_", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new AdbInstallException(Path.GetFileName(fullPath), result.Combined);
+        }
+    }
+
+    public async Task<IReadOnlyList<InstalledApp>> GetInstalledAppsAsync(
+        string usbSerial,
+        bool includeSystemApps,
+        CancellationToken cancellationToken)
+    {
+        RequireUsbSerial(usbSerial);
+        var apps = new Dictionary<string, InstalledApp>(StringComparer.OrdinalIgnoreCase);
+        await AddPackagesAsync(usbSerial, ["shell", "pm", "list", "packages", "-3", "-f"], false, apps, cancellationToken);
+        if (includeSystemApps)
+        {
+            await AddPackagesAsync(usbSerial, ["shell", "pm", "list", "packages", "-s", "-f"], true, apps, cancellationToken);
+        }
+
+        return apps.Values.OrderBy(app => app.PackageName, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     public async Task ProvisionWifiNetworkAsync(
@@ -279,6 +301,39 @@ public sealed partial class AdbService
         }
 
         throw new InvalidOperationException("The headset did not expose a stable serial identity.");
+    }
+
+    private async Task AddPackagesAsync(
+        string serial,
+        IReadOnlyList<string> arguments,
+        bool isSystem,
+        IDictionary<string, InstalledApp> destination,
+        CancellationToken cancellationToken)
+    {
+        var result = await RunForDeviceAsync(serial, arguments, ShortTimeout, cancellationToken);
+        EnsureSuccess(result, "Read installed applications");
+        foreach (var line in result.StandardOutput.ReplaceLineEndings("\n").Split('\n'))
+        {
+            var value = line.Trim();
+            if (!value.StartsWith("package:", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            value = value["package:".Length..];
+            var separator = value.LastIndexOf('=');
+            if (separator <= 0 || separator == value.Length - 1)
+            {
+                continue;
+            }
+
+            var apkPath = value[..separator].Trim();
+            var packageName = value[(separator + 1)..].Trim();
+            if (PackagePattern().IsMatch(packageName))
+            {
+                destination[packageName] = new InstalledApp(packageName, apkPath, isSystem);
+            }
+        }
     }
 
     private async Task PopulateDeviceFactsAsync(QuestDevice device, CancellationToken cancellationToken)
@@ -569,6 +624,16 @@ public sealed partial class AdbService
         if (!SerialPattern().IsMatch(serial))
         {
             throw new ArgumentException("The ADB serial contains unsupported characters.");
+        }
+        return serial;
+    }
+
+    private static string RequireUsbSerial(string serial)
+    {
+        serial = RequireSerial(serial);
+        if (serial.Contains(':'))
+        {
+            throw new ArgumentException("Connect this headset by USB to view its installed applications.");
         }
         return serial;
     }

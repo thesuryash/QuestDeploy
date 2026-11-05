@@ -1,13 +1,14 @@
 param(
     [string]$Configuration = 'Release',
-    [string]$Version = '0.8.0',
-    [string]$AdbDirectory = (Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools')
+    [string]$Version = '0.9.0',
+    [string]$AdbDirectory = (Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools'),
+    [string]$ScrcpyDirectory = $env:QUEST_DEPLOY_SCRCPY_DIRECTORY
 )
 
 $ErrorActionPreference = 'Stop'
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') {
-    throw 'Version must use MAJOR.MINOR.PATCH format, for example 0.8.1.'
+    throw 'Version must use MAJOR.MINOR.PATCH format, for example 0.9.1.'
 }
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -58,6 +59,21 @@ foreach ($fileName in @('adb.exe', 'AdbWinApi.dll', 'AdbWinUsbApi.dll', 'NOTICE.
         throw "Required Android Platform Tools file was not found: $source"
     }
     Copy-Item -LiteralPath $source -Destination (Join-Path $platformToolsOutput $fileName) -Force
+}
+
+if (-not [string]::IsNullOrWhiteSpace($ScrcpyDirectory)) {
+    $scrcpySource = [IO.Path]::GetFullPath($ScrcpyDirectory)
+    $scrcpyExe = Join-Path $scrcpySource 'scrcpy.exe'
+    if (-not (Test-Path -LiteralPath $scrcpyExe)) {
+        throw "scrcpy.exe was not found in: $scrcpySource"
+    }
+
+    $scrcpyOutput = Join-Path $appOutput 'scrcpy'
+    New-Item -ItemType Directory -Force $scrcpyOutput | Out-Null
+    Copy-Item -Path (Join-Path $scrcpySource '*') -Destination $scrcpyOutput -Recurse -Force
+}
+else {
+    Write-Warning 'scrcpy was not supplied. The app will build, but Cast screen will require QUEST_DEPLOY_SCRCPY or a separate scrcpy installation.'
 }
 
 if (Test-Path $appZip) {

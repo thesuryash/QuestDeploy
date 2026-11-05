@@ -1,6 +1,7 @@
 bin/
 obj/
 artifacts/
+.dependencies/
 .codex/
 src/QuestDeploy.Installer/Payload/*.zip
 *.user
