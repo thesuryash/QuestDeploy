@@ -150,6 +150,23 @@ public sealed partial class AdbService
         return apps.Values.OrderBy(app => app.PackageName, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    public async Task<DisplaySize> GetDisplaySizeAsync(string usbSerial, CancellationToken cancellationToken)
+    {
+        RequireUsbSerial(usbSerial);
+        var result = await RunForDeviceAsync(usbSerial, ["shell", "wm", "size"], ShortTimeout, cancellationToken);
+        EnsureSuccess(result, "Read headset display size");
+        var matches = Regex.Matches(result.StandardOutput, @"(?<width>\d{3,5})x(?<height>\d{3,5})");
+        if (matches.Count == 0 ||
+            !int.TryParse(matches[^1].Groups["width"].Value, out var width) ||
+            !int.TryParse(matches[^1].Groups["height"].Value, out var height) ||
+            width < 4 || height < 4)
+        {
+            throw new InvalidOperationException("The headset did not report a usable display size. Choose Both eyes or reconnect the USB cable.");
+        }
+
+        return new DisplaySize(width, height);
+    }
+
     public async Task ProvisionWifiNetworkAsync(
         string serial,
         string ssid,

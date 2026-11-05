@@ -36,5 +36,5 @@ Technical controls such as manual endpoints, hotspot neighbor candidates, parall
 
 - Installed-app inventory uses Android's package manager and is limited to a physically connected headset.
 - Third-party apps are the default view; system packages can be included explicitly.
-- Casting invokes the official scrcpy executable with the selected USB serial and read-only control disabled.
+- Casting invokes the official scrcpy executable with the selected USB serial and read-only control disabled. Left eye is the default; left/right modes crop the live headset width in half, while Both eyes streams the complete frame.
 - Deployment failures are classified from Android package-manager and ADB diagnostics, while the original output remains visible for support.

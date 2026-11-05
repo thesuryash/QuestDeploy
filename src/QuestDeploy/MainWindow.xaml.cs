@@ -307,17 +307,32 @@ public partial class MainWindow : Window
         new InstalledAppsWindow(_adb, device) { Owner = this }.ShowDialog();
     }
 
-    private void OnCastDevice(object sender, RoutedEventArgs e)
+    private async void OnCastDevice(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.CommandParameter is not QuestDevice { HasUsb: true } device)
         {
             return;
         }
 
+        var options = new CastOptionsWindow(device) { Owner = this };
+        if (options.ShowDialog() != true)
+        {
+            return;
+        }
+
         try
         {
-            _scrcpy.StartUsbCast(device);
-            SetFooter($"Opened a read-only cast window for {device.Name}.");
+            DisplaySize? displaySize = options.SelectedMode is CastViewMode.BothEyes
+                ? null
+                : await _adb.GetDisplaySizeAsync(device.UsbSerial, CancellationToken.None);
+            _scrcpy.StartUsbCast(device, options.SelectedMode, displaySize);
+            var view = options.SelectedMode switch
+            {
+                CastViewMode.RightEye => "right eye",
+                CastViewMode.BothEyes => "both eyes",
+                _ => "left eye"
+            };
+            SetFooter($"Opened a read-only {view} cast for {device.Name}.");
         }
         catch (Exception exception)
         {

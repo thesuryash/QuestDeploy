@@ -23,7 +23,7 @@ Version 0.9.0 adds the Phase 2 headset-management and support tools:
 - Parallel deployment to as many as four selected headsets.
 - Install-error diagnosis with error-specific causes, recovery steps, and raw ADB output.
 - Installed third-party and system-app inventory for physically connected headsets.
-- Read-only USB screen casting through the bundled, verified scrcpy distribution.
+- Read-only USB screen casting through the bundled, verified scrcpy distribution, with Left eye, Right eye, and Both eyes views.
 - File menu actions for restarting or exiting the application.
 - About dialog with authorship, operational notes, MIT licensing, Android Platform Tools attribution, and source links.
 - Manual **Check for updates** action backed by GitHub Releases.
