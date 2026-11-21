@@ -19,6 +19,7 @@ internal static class Program
         try
         {
             WaitForRequestedProcess(args);
+            Directory.SetCurrentDirectory(Path.GetTempPath());
 
             var installDirectory = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

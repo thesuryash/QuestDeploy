@@ -56,6 +56,7 @@ public partial class AboutWindow : Window
             {
                 FileName = installerPath,
                 Arguments = $"--wait-for-pid={Environment.ProcessId}",
+                WorkingDirectory = Path.GetTempPath(),
                 UseShellExecute = true
             });
             if (installerProcess is null)
