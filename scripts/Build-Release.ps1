@@ -1,6 +1,6 @@
 param(
     [string]$Configuration = 'Release',
-    [string]$Version = '0.10.4',
+    [string]$Version = '0.10.5',
     [string]$AdbDirectory = (Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools'),
     [string]$ScrcpyDirectory = $env:QUEST_DEPLOY_SCRCPY_DIRECTORY
 )

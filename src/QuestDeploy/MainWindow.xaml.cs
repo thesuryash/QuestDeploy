@@ -398,7 +398,17 @@ public partial class MainWindow : Window
             DisplaySize? displaySize = settings.ViewMode is CastViewMode.BothEyes
                 ? null
                 : await _adb.GetDisplaySizeAsync(serial, CancellationToken.None);
-            _scrcpy.StartCast(device, serial, settings, displaySize);
+            await _scrcpy.StartCastAsync(device, serial, settings, displaySize, _adb.AdbPath, message =>
+            {
+                _ = Dispatcher.InvokeAsync(() =>
+                {
+                    if (!_windowLifetime.IsCancellationRequested)
+                    {
+                        SetFooter($"Cast failed: {message}");
+                        MessageBox.Show(this, message, "Could not cast headset", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                });
+            });
             var view = settings.ViewMode switch
             {
                 CastViewMode.RightEye => "right eye",

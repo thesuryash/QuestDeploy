@@ -17,7 +17,7 @@ public sealed partial class UpdateService
         using var response = await Client.GetAsync(ManifestUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            return null;
+            throw new InvalidOperationException("The latest QuestDeploy release has no update manifest. Install from the project's GitHub Releases page or try again later.");
         }
         response.EnsureSuccessStatusCode();
 

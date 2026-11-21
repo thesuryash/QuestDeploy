@@ -9,7 +9,13 @@ public sealed class ScrcpyService
     private const double CorrectedEyeWidthRatio = 1792d / 2064d;
     private const int QuestPanelAngle = 22;
 
-    public void StartCast(QuestDevice device, string serial, CastSettings settings, DisplaySize? displaySize)
+    public async Task StartCastAsync(
+        QuestDevice device,
+        string serial,
+        CastSettings settings,
+        DisplaySize? displaySize,
+        string adbPath,
+        Action<string> reportFailure)
     {
         if (string.IsNullOrWhiteSpace(serial) || !device.IsConnected)
         {
@@ -23,8 +29,14 @@ public sealed class ScrcpyService
             FileName = scrcpyPath,
             WorkingDirectory = Path.GetDirectoryName(scrcpyPath) ?? AppContext.BaseDirectory,
             UseShellExecute = false,
-            CreateNoWindow = true
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
         };
+        if (!string.IsNullOrWhiteSpace(adbPath))
+        {
+            startInfo.Environment["ADB"] = adbPath;
+        }
         startInfo.ArgumentList.Add("--serial");
         startInfo.ArgumentList.Add(serial);
         startInfo.ArgumentList.Add("--window-title");
@@ -76,10 +88,62 @@ public sealed class ScrcpyService
             startInfo.Environment["SCRCPY_ICON_DIR"] = iconDirectory;
         }
 
-        if (Process.Start(startInfo) is null)
+        var process = Process.Start(startInfo);
+        if (process is null)
         {
             throw new InvalidOperationException("The casting window could not be started.");
         }
+
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
+        var exitTask = process.WaitForExitAsync();
+        if (await Task.WhenAny(exitTask, Task.Delay(TimeSpan.FromSeconds(2))) == exitTask)
+        {
+            await exitTask;
+            var failure = CastFailure(process.ExitCode, await outputTask, await errorTask);
+            process.Dispose();
+            throw new InvalidOperationException(failure);
+        }
+
+        _ = ReportLaterFailureAsync(process, exitTask, outputTask, errorTask, reportFailure);
+    }
+
+    private static async Task ReportLaterFailureAsync(
+        Process process,
+        Task exitTask,
+        Task<string> outputTask,
+        Task<string> errorTask,
+        Action<string> reportFailure)
+    {
+        try
+        {
+            await exitTask;
+            if (process.ExitCode != 0)
+            {
+                reportFailure(CastFailure(process.ExitCode, await outputTask, await errorTask));
+            }
+        }
+        catch (Exception exception)
+        {
+            reportFailure($"Could not monitor the casting window: {exception.Message}");
+        }
+        finally
+        {
+            process.Dispose();
+        }
+    }
+
+    private static string CastFailure(int exitCode, string output, string error)
+    {
+        var detail = string.Join(Environment.NewLine,
+            new[] { error.Trim(), output.Trim() }.Where(value => value.Length > 0));
+        if (detail.Length > 1800)
+        {
+            detail = detail[^1800..];
+        }
+        return detail.Length == 0
+            ? $"The casting component exited with code {exitCode} before showing a video window."
+            : $"The casting component exited with code {exitCode}:{Environment.NewLine}{detail}";
     }
 
     private static int MakeEven(int value) => value - value % 2;

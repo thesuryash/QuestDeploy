@@ -24,6 +24,7 @@ internal static class Program
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Programs",
                 ProductName);
+            StopInstalledAdbServer(installDirectory);
             WaitForInstalledInstances(installDirectory);
 
             var executablePath = InstallPayloadTransactionally(installDirectory);
@@ -60,6 +61,75 @@ internal static class Program
                 MessageBoxIcon.Error);
             return 1;
         }
+    }
+
+    private static void StopInstalledAdbServer(string installDirectory)
+    {
+        var adbPath = Path.Combine(installDirectory, "platform-tools", "adb.exe");
+        if (!File.Exists(adbPath))
+        {
+            return;
+        }
+
+        using (var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = adbPath,
+            ArgumentList = { "kill-server" },
+            WorkingDirectory = Path.GetDirectoryName(adbPath)!,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        }) ?? throw new InvalidOperationException("The installed ADB server could not be stopped."))
+        {
+            if (!process.WaitForExit(10_000))
+            {
+                process.Kill(entireProcessTree: true);
+                throw new InvalidOperationException("The installed ADB server did not respond to the stop request. Close applications using QuestDeploy's ADB tools and retry setup.");
+            }
+        }
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (HasInstalledAdbProcess(installDirectory) && DateTime.UtcNow < deadline)
+        {
+            Thread.Sleep(200);
+        }
+
+        if (HasInstalledAdbProcess(installDirectory))
+        {
+            throw new InvalidOperationException("The installed ADB server is still using QuestDeploy files. Close applications using QuestDeploy's ADB tools and retry setup.");
+        }
+    }
+
+    private static bool HasInstalledAdbProcess(string installDirectory)
+    {
+        var normalizedDirectory = Path.GetFullPath(installDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        foreach (var process in Process.GetProcessesByName("adb"))
+        {
+            using (process)
+            {
+                try
+                {
+                    var executablePath = process.MainModule?.FileName;
+                    if (!string.IsNullOrWhiteSpace(executablePath) &&
+                        Path.GetFullPath(executablePath).StartsWith(normalizedDirectory, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    // The ADB process exited while being inspected.
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    // A process owned by another account cannot lock this per-user installation.
+                }
+            }
+        }
+
+        return false;
     }
 
     private static void WaitForRequestedProcess(IEnumerable<string> args)

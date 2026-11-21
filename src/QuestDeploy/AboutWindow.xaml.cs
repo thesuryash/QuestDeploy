@@ -19,6 +19,7 @@ public partial class AboutWindow : Window
 
     private async void OnCheckForUpdates(object sender, RoutedEventArgs e)
     {
+        var stage = "check for updates";
         CheckUpdatesButton.IsEnabled = false;
         CheckUpdatesButton.Content = "Checking...";
         UpdateStatusText.Text = "Contacting GitHub Releases...";
@@ -45,9 +46,11 @@ public partial class AboutWindow : Window
                 return;
             }
 
+            stage = "download the update";
             CheckUpdatesButton.Content = "Downloading...";
             var progress = new Progress<string>(message => UpdateStatusText.Text = message);
             var installerPath = await _updateService.DownloadInstallerAsync(update, progress, CancellationToken.None);
+            stage = "start the installer";
             UpdateStatusText.Text = "Starting the verified installer...";
             var installerProcess = Process.Start(new ProcessStartInfo
             {
@@ -64,8 +67,8 @@ public partial class AboutWindow : Window
         }
         catch (Exception exception)
         {
-            UpdateStatusText.Text = "The update check failed.";
-            MessageBox.Show(this, exception.Message, "Could not check for updates", MessageBoxButton.OK, MessageBoxImage.Error);
+            UpdateStatusText.Text = $"Could not {stage}: {exception.Message}";
+            MessageBox.Show(this, exception.ToString(), $"Could not {stage}", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
