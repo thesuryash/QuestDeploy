@@ -21,6 +21,10 @@ When the manifest reports a newer semantic version, the application:
 
 The updater never silently installs software, never runs an installer with a hash mismatch, and does not require an update service running in the background.
 
+## Installer Working-Directory Lock
+
+The updater must not launch setup with QuestDeploy's installation directory as its working directory. When QuestDeploy is started from its installed shortcut, the installer can inherit that directory as its current directory; Windows then prevents setup from renaming the directory during replacement and reports that a file is in use. The updater launches setup with the system temporary directory as its working directory, and setup switches to that directory before touching the installed files. Setup also stops the bundled ADB server before replacing the installation. This was fixed in v0.10.7 and confirmed by a successful update installation.
+
 Normal installation and updates place replaceable program files in `%LOCALAPPDATA%\Programs\QuestDeploy`. Start Menu and Desktop shortcuts point directly to the installed executable. Remembered headset data stays separately in `%LOCALAPPDATA%\QuestDeploy`.
 
 ## Publishing A Release
